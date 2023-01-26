@@ -1,12 +1,11 @@
 #![feature(option_result_contains)]
 use nom::{
     branch::alt,
-    bytes::{
-        complete::{take_until1, take_while_m_n},
-        streaming::take_while,
-    },
+    bytes::complete::{take_until1, take_while, take_while_m_n},
+    character::complete::{alphanumeric1, multispace0},
     combinator::{complete, map_res, rest},
-    sequence::tuple,
+    multi::many1,
+    sequence::{preceded, tuple},
     IResult,
 };
 use serde::Deserialize;
@@ -23,36 +22,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cards = serde_json::from_reader::<_, CardInfo>(std::io::BufReader::new(std::fs::File::open("cards.json")?))?.data;
     let search_cards: Vec<_> = cards.iter().map(SearchCard::from).collect();
     let cards_by_id: HashMap<_, _> = cards.into_iter().map(|c| (c.id, c)).collect();
-    let mut query = Vec::new();
-    for q in std::env::args().skip(1) {
-        match parse_filter(&q) {
-            Ok((_, filter)) => query.push(filter),
-            Err(e) => Err(format!("Malformed query fragment {q}: {e:?}"))?,
-        }
-    }
-
+    let raw_query = std::env::args().nth(1).unwrap();
+    let query = parse_filters(&raw_query)?;
     search_cards.iter().filter(|card| query.iter().all(|q| q(card))).for_each(|c| println!("{}", cards_by_id.get(&c.id).unwrap()));
-
     Ok(())
 }
 
-fn parse_filter(input: &str) -> IResult<&str, CardFilter> {
-    map_res(parse_raw_filter, build_filter)(input)
+fn parse_filters(input: &str) -> Result<Vec<CardFilter>, String> {
+    parse_raw_filters(input).map_err(|e| format!("Error while parsing filters “{input}”: {e:?}")).and_then(|(rest, v)| {
+        if rest.is_empty() {
+            Ok(v.into_iter().map(build_filter).collect::<Result<Vec<_>, _>>()?)
+        } else {
+            Err(format!("Input was not fully parsed. Left over: “{rest}”"))
+        }
+    })
+}
+
+fn parse_raw_filters(input: &str) -> IResult<&str, Vec<RawCardFilter>> {
+    many1(parse_raw_filter)(input)
 }
 
 fn parse_raw_filter(input: &str) -> IResult<&str, RawCardFilter> {
-    alt((
-        complete(tuple((field, operator, value))),
-        map_res(take_until1(" "), |q| fallback_filter(q)),
-        map_res(rest, |q| fallback_filter(q)),
-    ))(input)
+    preceded(
+        multispace0,
+        alt((
+            complete(tuple((field, operator, value))),
+            map_res(take_until1(" "), |q| fallback_filter(q)),
+            // I would like to use `rest` here, but that results in a pattern that can be empty
+            // which can lead to infinite loops while parsing and is therefore disallowed by nom.
+            // I would need something like rest1 or a way to assert that the rest isn’t empty.
+            map_res(alphanumeric1, |q| fallback_filter(q)),
+        )),
+    )(input)
 }
 
 fn fallback_filter(query: &str) -> Result<RawCardFilter, String> {
     if query.contains(&OPERATOR_CHARS[..]) {
         return Err(format!("Invalid query: {query}"));
     }
-    dbg!("Trying to match {query} as card name");
+    #[cfg(debug_assertions)]
+    println!("Trying to match {query} as card name");
     let q = query.to_lowercase();
     Ok((Field::Name, Operator::Equals, Value::String(q)))
 }
@@ -328,19 +337,31 @@ mod tests {
         assert_eq!(parse_raw_filter("Necrovalley"), Ok(("", (Field::Name, Operator::Equals, Value::String("necrovalley".into())))));
         assert_eq!(parse_raw_filter("l=10"), Ok(("", (Field::Level, Operator::Equals, Value::Numerical(10)))));
 
+        let (rest, filter) = parse_raw_filter("atk>=100 l:4").unwrap();
+        assert_eq!(filter, (Field::Atk, Operator::GreaterEqual, Value::Numerical(100)));
+        assert_eq!(parse_raw_filter(rest), Ok(("", (Field::Level, Operator::Equals, Value::Numerical(4)))));
+
+        assert_eq!(
+            parse_raw_filters("atk>=100 l:4"),
+            Ok((
+                "",
+                vec![(Field::Atk, Operator::GreaterEqual, Value::Numerical(100)), (Field::Level, Operator::Equals, Value::Numerical(4))]
+            ))
+        );
+
         // These will fail during conversion
-        assert!(parse_filter("l===10").is_err());
-        assert!(parse_filter("t=").is_err());
-        assert!(parse_filter("=100").is_err());
-        assert!(parse_filter("atk<=>1").is_err());
+        assert!(parse_filters("l===10").is_err());
+        assert!(parse_filters("t=").is_err());
+        assert!(parse_filters("=100").is_err());
+        assert!(parse_filters("atk<=>1").is_err());
     }
 
     #[test]
     fn level_filter_test() {
         let lacooda = SearchCard::from(&serde_json::from_str::<Card>(RAW_MONSTER).unwrap());
-        let filter_level_3 = parse_filter("l=3").unwrap().1;
-        assert!(filter_level_3(&lacooda));
-        let filter_level_5 = parse_filter("l=5").unwrap().1;
-        assert!(!filter_level_5(&lacooda));
+        let filter_level_3 = parse_filters("l=3").unwrap();
+        assert!(filter_level_3[0](&lacooda));
+        let filter_level_5 = parse_filters("l=5").unwrap();
+        assert!(!filter_level_5[0](&lacooda));
     }
 }
