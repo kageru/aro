@@ -1,0 +1,7 @@
+newline_style = "Unix"
+max_width = 140
+imports_granularity = "Crate"
+struct_field_align_threshold = 25
+where_single_line = true
+edition = "2021"
+use_small_heuristics = "Max"

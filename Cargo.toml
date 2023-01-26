@@ -1,8 +1,9 @@
 [package]
-name = "aro"
+name = "scryfall-ygo"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
+nom = "7.1.3"
