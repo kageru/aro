@@ -4,16 +4,17 @@ use crate::filter::{build_filter, fallback_filter, CardFilter, RawCardFilter};
 use nom::{
     branch::alt,
     bytes::complete::{take_until1, take_while, take_while_m_n},
-    character::complete::multispace0,
+    character::complete::{char, multispace0},
     combinator::{complete, map_res, rest, verify},
     multi::many_m_n,
-    sequence::{preceded, tuple},
+    sequence::{delimited, preceded, tuple},
     IResult,
 };
 
 pub fn parse_filters(input: &str) -> Result<Vec<CardFilter>, String> {
-    parse_raw_filters(input).map_err(|e| format!("Error while parsing filters “{input}”: {e:?}")).and_then(|(rest, v)| {
+    parse_raw_filters(input).map_err(|e| format!("Error while parsing filters “{input}”: {e:?}")).and_then(|(rest, mut v)| {
         if rest.is_empty() {
+            v.sort_unstable_by_key(|(f, _, _)| *f as u8);
             v.into_iter().map(build_filter).collect()
         } else {
             Err(format!("Input was not fully parsed. Left over: “{rest}”"))
@@ -44,23 +45,25 @@ fn operator(input: &str) -> IResult<&str, Operator> {
 }
 
 fn value(input: &str) -> IResult<&str, Value> {
-    map_res(alt((take_until1(" "), rest)), |i: &str| match i.parse() {
+    map_res(alt((delimited(char('"'), take_until1("\""), char('"')), take_until1(" "), rest)), |i: &str| match i.parse() {
         Ok(n) => Ok(Value::Numerical(n)),
         Err(_) if i.is_empty() => Err("empty filter argument"),
         Err(_) => Ok(Value::String(i.to_lowercase())),
     })(input)
 }
 
+/// Ordinals are given highest = fastest to filter.
+/// This is used to sort filters before applying them.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Field {
-    Atk,
-    Def,
-    Level,
-    Type,
-    Attribute,
-    Class,
-    Name,
-    Text,
+    Text = 0,
+    Name = 1,
+    Class = 2,
+    Attribute = 3,
+    Type = 4,
+    Level = 5,
+    Atk = 6,
+    Def = 7,
 }
 
 impl FromStr for Field {
@@ -156,11 +159,30 @@ mod tests {
         assert_eq!(parse_raw_filter(rest), Ok(("", (Field::Level, Operator::Equals, Value::Numerical(4)))));
 
         assert_eq!(
-            parse_raw_filters("atk>=100 l:4"),
+            parse_raw_filters("atk>=100 l=4"),
             Ok((
                 "",
                 vec![(Field::Atk, Operator::GreaterEqual, Value::Numerical(100)), (Field::Level, Operator::Equals, Value::Numerical(4))]
             ))
         );
+
+        assert_eq!(
+            parse_raw_filters(r#"t:counter c:trap o:"negate the summon""#),
+            Ok((
+                "",
+                vec![
+                    (Field::Type, Operator::Equals, Value::String("counter".into())),
+                    (Field::Class, Operator::Equals, Value::String("trap".into())),
+                    (Field::Text, Operator::Equals, Value::String("negate the summon".into())),
+                ]
+            ))
+        );
+    }
+
+    #[test]
+    fn quoted_value_test() {
+        let (rest, filter) = parse_raw_filter(r#"o:"destroy that target""#).unwrap();
+        assert_eq!(rest, "");
+        assert_eq!(filter, (Field::Text, Operator::Equals, Value::String("destroy that target".into())));
     }
 }

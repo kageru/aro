@@ -45,14 +45,11 @@ pub fn fallback_filter(query: &str) -> Result<RawCardFilter, String> {
     if query.contains(OPERATOR_CHARS) {
         return Err(format!("Invalid query: {query}"));
     }
-    #[cfg(debug_assertions)]
-    println!("Trying to match {query} as card name");
     let q = query.to_lowercase();
     Ok((Field::Name, Operator::Equals, Value::String(q)))
 }
 
 pub fn build_filter(query: RawCardFilter) -> Result<CardFilter, String> {
-    dbg!(&query);
     Ok(match query {
         (Field::Atk, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.atk, n)),
         (Field::Def, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.def, n)),
