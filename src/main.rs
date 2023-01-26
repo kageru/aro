@@ -1,8 +1,11 @@
 #![feature(option_result_contains)]
 use nom::{
     branch::alt,
-    bytes::{complete::take_while_m_n, streaming::take_while},
-    combinator::{map_res, rest},
+    bytes::{
+        complete::{take_until1, take_while_m_n},
+        streaming::take_while,
+    },
+    combinator::{complete, map_res, rest},
     sequence::tuple,
     IResult,
 };
@@ -14,6 +17,7 @@ use std::{
 };
 
 type CardFilter = Box<dyn Fn(&SearchCard) -> bool>;
+type RawCardFilter = (Field, Operator, Value);
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cards = serde_json::from_reader::<_, CardInfo>(std::io::BufReader::new(std::fs::File::open("cards.json")?))?.data;
@@ -21,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cards_by_id: HashMap<_, _> = cards.into_iter().map(|c| (c.id, c)).collect();
     let mut query = Vec::new();
     for q in std::env::args().skip(1) {
-        match query_arg(&q) {
+        match parse_filter(&q) {
             Ok((_, filter)) => query.push(filter),
             Err(e) => Err(format!("Malformed query fragment {q}: {e:?}"))?,
         }
@@ -32,27 +36,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn query_arg(input: &str) -> IResult<&str, CardFilter> {
-    alt((map_res(tuple((field, operator, value)), |t| build_filter(t)), map_res(rest, |q: &str| fallback_filter(q))))(input)
+fn parse_filter(input: &str) -> IResult<&str, CardFilter> {
+    map_res(parse_raw_filter, build_filter)(input)
 }
 
-fn fallback_filter(query: &str) -> Result<CardFilter, String> {
+fn parse_raw_filter(input: &str) -> IResult<&str, RawCardFilter> {
+    alt((
+        complete(tuple((field, operator, value))),
+        map_res(take_until1(" "), |q| fallback_filter(q)),
+        map_res(rest, |q| fallback_filter(q)),
+    ))(input)
+}
+
+fn fallback_filter(query: &str) -> Result<RawCardFilter, String> {
     if query.contains(&OPERATOR_CHARS[..]) {
         return Err(format!("Invalid query: {query}"));
     }
-    println!("Trying to match {} as card name", query);
+    dbg!("Trying to match {query} as card name");
     let q = query.to_lowercase();
-    Ok(Box::new(move |card: &SearchCard| card.name.contains(&q)))
+    Ok((Field::Name, Operator::Equals, Value::String(q)))
 }
 
-fn build_filter(query: (Field, Operator, Value)) -> Result<CardFilter, String> {
+fn build_filter(query: RawCardFilter) -> Result<CardFilter, String> {
     dbg!(&query);
     Ok(match query {
         (Field::Atk, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.atk, n)),
         (Field::Def, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.def, n)),
+        // ? ATK/DEF is modeled as None in the source json. At least for some monsters.
+        // Let’s at least find those.
+        (Field::Atk, _, Value::String(s)) if s == "?" => Box::new(move |card| card.atk.is_none() && card.card_type.contains("monster")),
+        (Field::Def, _, Value::String(s)) if s == "?" => {
+            Box::new(move |card| card.def.is_none() && card.link_rating.is_none() && card.card_type.contains("monster"))
+        }
         (Field::Level, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.level, n)),
         (Field::Type, Operator::Equals, Value::String(s)) => Box::new(move |card| card.r#type == s),
         (Field::Class, Operator::Equals, Value::String(s)) => Box::new(move |card| card.card_type.contains(&s)),
+        (Field::Text, Operator::Equals, Value::String(s)) => Box::new(move |card| card.text.contains(&s)),
+        (Field::Name, Operator::Equals, Value::String(s)) => Box::new(move |card| card.name.contains(&s)),
         q => Err(format!("unknown query: {q:?}"))?,
     })
 }
@@ -68,7 +88,7 @@ fn operator(input: &str) -> IResult<&str, Operator> {
 }
 
 fn value(input: &str) -> IResult<&str, Value> {
-    map_res(rest, |i: &str| match i.parse() {
+    map_res(alt((take_until1(" "), rest)), |i: &str| match i.parse() {
         Ok(n) => Ok(Value::Numerical(n)),
         Err(_) if i.is_empty() => Err("empty filter argument"),
         Err(_) => Ok(Value::String(i.to_lowercase())),
@@ -83,6 +103,8 @@ enum Field {
     Type,
     Attribute,
     Class,
+    Name,
+    Text,
 }
 
 impl FromStr for Field {
@@ -95,6 +117,7 @@ impl FromStr for Field {
             "type" | "t" => Self::Type,
             "attribute" | "attr" | "a" => Self::Attribute,
             "c" | "class" => Self::Class,
+            "o" | "eff" | "text" | "effect" | "e" => Self::Text,
             _ => Err(s.to_string())?,
         })
     }
@@ -297,13 +320,27 @@ mod tests {
     }
 
     #[test]
+    fn query_parsing_test() {
+        assert_eq!(parse_raw_filter("t:PYro"), Ok(("", (Field::Type, Operator::Equals, Value::String("pyro".into())))));
+        assert_eq!(parse_raw_filter("t=pyro"), Ok(("", (Field::Type, Operator::Equals, Value::String("pyro".into())))));
+        assert_eq!(parse_raw_filter("t==pyro"), Ok(("", (Field::Type, Operator::Equals, Value::String("pyro".into())))));
+        assert_eq!(parse_raw_filter("atk>=100"), Ok(("", (Field::Atk, Operator::GreaterEqual, Value::Numerical(100)))));
+        assert_eq!(parse_raw_filter("Necrovalley"), Ok(("", (Field::Name, Operator::Equals, Value::String("necrovalley".into())))));
+        assert_eq!(parse_raw_filter("l=10"), Ok(("", (Field::Level, Operator::Equals, Value::Numerical(10)))));
+
+        // These will fail during conversion
+        assert!(parse_filter("l===10").is_err());
+        assert!(parse_filter("t=").is_err());
+        assert!(parse_filter("=100").is_err());
+        assert!(parse_filter("atk<=>1").is_err());
+    }
+
+    #[test]
     fn level_filter_test() {
         let lacooda = SearchCard::from(&serde_json::from_str::<Card>(RAW_MONSTER).unwrap());
-        let filter_level_3 = query_arg("l=3").unwrap().1;
+        let filter_level_3 = parse_filter("l=3").unwrap().1;
         assert!(filter_level_3(&lacooda));
-        let filter_level_5 = query_arg("l=5").unwrap().1;
+        let filter_level_5 = parse_filter("l=5").unwrap().1;
         assert!(!filter_level_5(&lacooda));
-        let filter_level_incorrect = query_arg("l===5").unwrap().1;
-        assert!(!filter_level_incorrect(&lacooda));
     }
 }
