@@ -1,57 +1,60 @@
 #![feature(option_result_contains)]
 use nom::{
+    branch::alt,
     bytes::{complete::take_while_m_n, streaming::take_while},
     combinator::{map_res, rest},
     sequence::tuple,
     IResult,
 };
-use serde::{de::Visitor, Deserialize, Deserializer};
+use serde::Deserialize;
 use std::{
+    collections::HashMap,
     fmt::{self, Display},
     str::FromStr,
 };
 
+type CardFilter = Box<dyn Fn(&SearchCard) -> bool>;
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cards = serde_json::from_reader::<_, CardInfo>(std::io::BufReader::new(std::fs::File::open("cards.json")?))?.data;
-    let query = std::env::args()
-        .skip(1)
-        .map(|q| {
-            query_arg(&q).map(|(_, r)| build_filter(r)).unwrap_or_else(|_| {
-                println!("Trying to match {} as card name", q);
-                let q = q.to_lowercase();
-                Box::new(move |card: &Card| card.name.to_lowercase().contains(&q))
-            })
-        })
-        .collect::<Vec<Box<dyn Fn(&Card) -> bool>>>();
+    let search_cards: Vec<_> = cards.iter().map(SearchCard::from).collect();
+    let cards_by_id: HashMap<_, _> = cards.into_iter().map(|c| (c.id, c)).collect();
+    let mut query = Vec::new();
+    for q in std::env::args().skip(1) {
+        match query_arg(&q) {
+            Ok((_, filter)) => query.push(filter),
+            Err(e) => Err(format!("Malformed query fragment {q}: {e:?}"))?,
+        }
+    }
 
-    cards.iter().filter(|card| query.iter().all(|q| q(card))).for_each(|c| println!("{c}"));
+    search_cards.iter().filter(|card| query.iter().all(|q| q(card))).for_each(|c| println!("{}", cards_by_id.get(&c.id).unwrap()));
 
     Ok(())
 }
 
-fn query_arg(input: &str) -> IResult<&str, (Field, Operator, Value)> {
-    tuple((field, operator, value))(input)
+fn query_arg(input: &str) -> IResult<&str, CardFilter> {
+    alt((map_res(tuple((field, operator, value)), |t| build_filter(t)), map_res(rest, |q: &str| fallback_filter(q))))(input)
 }
 
-fn build_filter(query: (Field, Operator, Value)) -> Box<dyn Fn(&Card) -> bool> {
-    // dbg!("Building filter for {query:?}");
-    match query {
+fn fallback_filter(query: &str) -> Result<CardFilter, String> {
+    if query.contains(&OPERATOR_CHARS[..]) {
+        return Err(format!("Invalid query: {query}"));
+    }
+    println!("Trying to match {} as card name", query);
+    let q = query.to_lowercase();
+    Ok(Box::new(move |card: &SearchCard| card.name.contains(&q)))
+}
+
+fn build_filter(query: (Field, Operator, Value)) -> Result<CardFilter, String> {
+    dbg!(&query);
+    Ok(match query {
         (Field::Atk, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.atk, n)),
         (Field::Def, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.def, n)),
         (Field::Level, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.level, n)),
-        (Field::Type, Operator::Equals, Value::String(s)) => Box::new(move |card| card.r#type.to_lowercase() == s.to_lowercase()),
-        (Field::Attribute, Operator::Equals, Value::String(s)) => {
-            Box::new(move |card| card.attribute.as_ref().map(|s| s.to_lowercase()).contains(&s.to_lowercase()))
-        }
-        (Field::Class, Operator::Equals, Value::String(s)) => {
-            let s = s.to_lowercase();
-            Box::new(move |card| card.card_type.iter().map(|t| t.to_lowercase()).any(|t| t == s))
-        }
-        q => {
-            println!("unknown query: {q:?}");
-            Box::new(|_| false)
-        }
-    }
+        (Field::Type, Operator::Equals, Value::String(s)) => Box::new(move |card| card.r#type == s),
+        (Field::Class, Operator::Equals, Value::String(s)) => Box::new(move |card| card.card_type.contains(&s)),
+        q => Err(format!("unknown query: {q:?}"))?,
+    })
 }
 
 fn field(input: &str) -> IResult<&str, Field> {
@@ -66,8 +69,9 @@ fn operator(input: &str) -> IResult<&str, Operator> {
 
 fn value(input: &str) -> IResult<&str, Value> {
     map_res(rest, |i: &str| match i.parse() {
-        Ok(n) => Result::<_, ()>::Ok(Value::Numerical(n)),
-        Err(_) => Ok(Value::String(i.to_owned())),
+        Ok(n) => Ok(Value::Numerical(n)),
+        Err(_) if i.is_empty() => Err("empty filter argument"),
+        Err(_) => Ok(Value::String(i.to_lowercase())),
     })(input)
 }
 
@@ -146,28 +150,11 @@ struct CardInfo {
     data: Vec<Card>,
 }
 
-fn split_types<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<String>, D::Error> {
-    struct SplittingVisitor;
-
-    impl<'de> Visitor<'de> for SplittingVisitor {
-        type Value = Vec<String>;
-
-        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-            formatter.write_str("a string")
-        }
-
-        fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
-            Ok(v.split_whitespace().filter(|t| t != &"Card").map(str::to_owned).collect())
-        }
-    }
-    deserializer.deserialize_any(SplittingVisitor)
-}
-
 #[derive(Debug, Deserialize, PartialEq, Eq, Clone, Default)]
-#[serde(tag = "type")]
 struct Card {
-    #[serde(rename = "type", deserialize_with = "split_types")]
-    card_type:   Vec<String>,
+    id:          usize,
+    #[serde(rename = "type")]
+    card_type:   String,
     name:        String,
     #[serde(rename = "desc")]
     text:        String,
@@ -181,7 +168,43 @@ struct Card {
     level:       Option<i32>,
     #[serde(rename = "linkval")]
     link_rating: Option<i32>,
-    linkmarkers: Option<Vec<String>>,
+    #[serde(rename = "linkmarkers")]
+    link_arrows: Option<Vec<String>>,
+}
+
+/// A struct derived from `Card` that has all fields lowercased for easier search
+#[derive(Debug, PartialEq, Eq, Clone)]
+struct SearchCard {
+    id:          usize,
+    card_type:   String,
+    name:        String,
+    text:        String,
+    atk:         Option<i32>,
+    def:         Option<i32>,
+    attribute:   Option<String>,
+    r#type:      String,
+    // also includes rank
+    level:       Option<i32>,
+    link_rating: Option<i32>,
+    link_arrows: Option<Vec<String>>,
+}
+
+impl From<&Card> for SearchCard {
+    fn from(card: &Card) -> Self {
+        Self {
+            id:          card.id,
+            card_type:   card.card_type.to_lowercase(),
+            name:        card.name.to_lowercase(),
+            text:        card.text.to_lowercase(),
+            atk:         card.atk,
+            def:         card.def,
+            attribute:   card.attribute.as_ref().map(|s| s.to_lowercase()),
+            r#type:      card.r#type.to_lowercase(),
+            level:       card.level,
+            link_rating: card.link_rating,
+            link_arrows: card.link_arrows.as_ref().map(|arrows| arrows.iter().map(|a| a.to_lowercase()).collect()),
+        }
+    }
 }
 
 impl Display for Card {
@@ -195,8 +218,7 @@ impl Display for Card {
         if let Some(attr) = &self.attribute {
             write!(f, "{attr}/")?;
         }
-        f.write_str(&self.r#type)?;
-        write!(f, " {})", self.card_type.join(" "))?;
+        write!(f, "{} {})", self.r#type, self.card_type)?;
         if self.card_type.contains(&String::from("Monster")) {
             match (self.atk, self.def) {
                 (Some(atk), Some(def)) => write!(f, " {atk} ATK / {def} DEF")?,
@@ -214,21 +236,36 @@ impl Display for Card {
 mod tests {
     use super::*;
 
+    const RAW_SPELL: &str = r#"
+    {
+      "id": 41142615,
+      "name": "The Cheerful Coffin",
+      "type": "Spell Card",
+      "desc": "Discard up to 3 Monster Cards from your hand to the Graveyard.",
+      "race": "Normal"
+    }"#;
+
+    const RAW_MONSTER: &str = r#"
+    {
+       "id": 2326738,
+       "name": "Des Lacooda",
+       "type": "Effect Monster",
+       "desc": "Once per turn: You can change this card to face-down Defense Position. When this card is Flip Summoned: Draw 1 card.",
+       "atk": 500,
+       "def": 600,
+       "level": 3,
+       "race": "Zombie",
+       "attribute": "EARTH"
+    }"#;
+
     #[test]
     fn test_spell() {
-        let s = r#"
-        {
-          "id": 41142615,
-          "name": "The Cheerful Coffin",
-          "type": "Spell Card",
-          "desc": "Discard up to 3 Monster Cards from your hand to the Graveyard.",
-          "race": "Normal"
-        }"#;
-        let coffin: Card = serde_json::from_str(s).unwrap();
+        let coffin: Card = serde_json::from_str(RAW_SPELL).unwrap();
         assert_eq!(
             coffin,
             Card {
-                card_type: vec!["Spell".to_owned()],
+                id: 41142615,
+                card_type: "Spell Card".to_owned(),
                 name: "The Cheerful Coffin".to_owned(),
                 text: "Discard up to 3 Monster Cards from your hand to the Graveyard.".to_owned(),
                 r#type: "Normal".to_owned(),
@@ -239,23 +276,12 @@ mod tests {
 
     #[test]
     fn test_monster() {
-        let s = r#"
-        {
-           "id": 2326738,
-           "name": "Des Lacooda",
-           "type": "Effect Monster",
-           "desc": "Once per turn: You can change this card to face-down Defense Position. When this card is Flip Summoned: Draw 1 card.",
-           "atk": 500,
-           "def": 600,
-           "level": 3,
-           "race": "Zombie",
-           "attribute": "EARTH"
-        }"#;
-        let munch: Card = serde_json::from_str(s).unwrap();
+        let munch: Card = serde_json::from_str(RAW_MONSTER).unwrap();
         assert_eq!(
             munch,
             Card {
-                card_type: vec!["Effect".to_owned(), "Monster".to_owned()],
+                id: 2326738,
+                card_type: "Effect Monster".to_owned(),
                 name: "Des Lacooda".to_owned(),
                 text:
                     "Once per turn: You can change this card to face-down Defense Position. When this card is Flip Summoned: Draw 1 card."
@@ -268,5 +294,16 @@ mod tests {
                 ..Default::default()
             },
         )
+    }
+
+    #[test]
+    fn level_filter_test() {
+        let lacooda = SearchCard::from(&serde_json::from_str::<Card>(RAW_MONSTER).unwrap());
+        let filter_level_3 = query_arg("l=3").unwrap().1;
+        assert!(filter_level_3(&lacooda));
+        let filter_level_5 = query_arg("l=5").unwrap().1;
+        assert!(!filter_level_5(&lacooda));
+        let filter_level_incorrect = query_arg("l===5").unwrap().1;
+        assert!(!filter_level_incorrect(&lacooda));
     }
 }
