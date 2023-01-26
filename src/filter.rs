@@ -42,7 +42,7 @@ pub type CardFilter = Box<dyn Fn(&SearchCard) -> bool>;
 pub type RawCardFilter = (Field, Operator, Value);
 
 pub fn fallback_filter(query: &str) -> Result<RawCardFilter, String> {
-    if query.contains(&OPERATOR_CHARS[..]) {
+    if query.contains(OPERATOR_CHARS) {
         return Err(format!("Invalid query: {query}"));
     }
     #[cfg(debug_assertions)]

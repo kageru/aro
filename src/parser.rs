@@ -30,7 +30,7 @@ fn word_non_empty(input: &str) -> IResult<&str, &str> {
 }
 
 fn parse_raw_filter(input: &str) -> IResult<&str, RawCardFilter> {
-    preceded(multispace0, alt((complete(tuple((field, operator, value))), map_res(word_non_empty, |q| fallback_filter(q)))))(input)
+    preceded(multispace0, alt((complete(tuple((field, operator, value))), map_res(word_non_empty, fallback_filter))))(input)
 }
 
 fn field(input: &str) -> IResult<&str, Field> {
