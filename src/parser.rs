@@ -38,7 +38,7 @@ fn field(input: &str) -> IResult<&str, Field> {
     map_res(take_while(char::is_alphabetic), str::parse)(input)
 }
 
-pub const OPERATOR_CHARS: &[char] = &['=', '<', '>', ':'];
+pub const OPERATOR_CHARS: &[char] = &['=', '<', '>', ':', '!'];
 
 fn operator(input: &str) -> IResult<&str, Operator> {
     map_res(take_while_m_n(1, 2, |c| OPERATOR_CHARS.contains(&c)), str::parse)(input)
@@ -84,7 +84,8 @@ impl FromStr for Field {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Operator {
-    Equals,
+    Equal,
+    NotEqual,
     Less,
     LessEqual,
     Greater,
@@ -95,14 +96,15 @@ impl Operator {
     pub fn filter_number(&self, a: Option<i32>, b: i32) -> bool {
         if let Some(a) = a {
             match self {
-                Self::Equals => a == b,
+                Self::Equal => a == b,
                 Self::Less => a < b,
                 Self::LessEqual => a <= b,
                 Self::Greater => a > b,
                 Self::GreaterEqual => a >= b,
+                Self::NotEqual => a != b,
             }
         } else {
-            false
+            self == &Self::NotEqual
         }
     }
 }
@@ -111,11 +113,12 @@ impl FromStr for Operator {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
-            "=" | "==" | ":" => Self::Equals,
+            "=" | "==" | ":" => Self::Equal,
             ">=" | "=>" => Self::GreaterEqual,
             "<=" | "=<" => Self::LessEqual,
             ">" => Self::Greater,
             "<" => Self::Less,
+            "!=" => Self::NotEqual,
             _ => Err(s.to_owned())?,
         })
     }
@@ -132,13 +135,14 @@ mod tests {
     use super::*;
     use test_case::test_case;
 
-    #[test_case("t=pyro" => Ok(("", (Field::Type, Operator::Equals, Value::String("pyro".into())))))]
-    #[test_case("t:PYro" => Ok(("", (Field::Type, Operator::Equals, Value::String("pyro".into())))); "input is lowercased")]
-    #[test_case("t==warrior" => Ok(("", (Field::Type, Operator::Equals, Value::String("warrior".into())))))]
+    #[test_case("t=pyro" => Ok(("", (Field::Type, Operator::Equal, Value::String("pyro".into())))))]
+    #[test_case("t:PYro" => Ok(("", (Field::Type, Operator::Equal, Value::String("pyro".into())))); "input is lowercased")]
+    #[test_case("t==warrior" => Ok(("", (Field::Type, Operator::Equal, Value::String("warrior".into())))))]
     #[test_case("atk>=100" => Ok(("", (Field::Atk, Operator::GreaterEqual, Value::Numerical(100)))))]
-    #[test_case("Necrovalley" => Ok(("", (Field::Name, Operator::Equals, Value::String("necrovalley".into())))))]
-    #[test_case("l=10" => Ok(("", (Field::Level, Operator::Equals, Value::Numerical(10)))))]
-    #[test_case("Ib" => Ok(("", (Field::Name, Operator::Equals, Value::String("ib".to_owned())))))]
+    #[test_case("Necrovalley" => Ok(("", (Field::Name, Operator::Equal, Value::String("necrovalley".into())))))]
+    #[test_case("l=10" => Ok(("", (Field::Level, Operator::Equal, Value::Numerical(10)))))]
+    #[test_case("Ib" => Ok(("", (Field::Name, Operator::Equal, Value::String("ib".to_owned())))))]
+    #[test_case("c!=synchro" => Ok(("", (Field::Class, Operator::NotEqual, Value::String("synchro".to_owned())))))]
     fn successful_parsing_test(input: &str) -> IResult<&str, RawCardFilter> {
         parse_raw_filter(input)
     }
@@ -156,13 +160,13 @@ mod tests {
     fn sequential_parsing_test() {
         let (rest, filter) = parse_raw_filter("atk>=100 l:4").unwrap();
         assert_eq!(filter, (Field::Atk, Operator::GreaterEqual, Value::Numerical(100)));
-        assert_eq!(parse_raw_filter(rest), Ok(("", (Field::Level, Operator::Equals, Value::Numerical(4)))));
+        assert_eq!(parse_raw_filter(rest), Ok(("", (Field::Level, Operator::Equal, Value::Numerical(4)))));
 
         assert_eq!(
             parse_raw_filters("atk>=100 l=4"),
             Ok((
                 "",
-                vec![(Field::Atk, Operator::GreaterEqual, Value::Numerical(100)), (Field::Level, Operator::Equals, Value::Numerical(4))]
+                vec![(Field::Atk, Operator::GreaterEqual, Value::Numerical(100)), (Field::Level, Operator::Equal, Value::Numerical(4))]
             ))
         );
 
@@ -171,9 +175,9 @@ mod tests {
             Ok((
                 "",
                 vec![
-                    (Field::Type, Operator::Equals, Value::String("counter".into())),
-                    (Field::Class, Operator::Equals, Value::String("trap".into())),
-                    (Field::Text, Operator::Equals, Value::String("negate the summon".into())),
+                    (Field::Type, Operator::Equal, Value::String("counter".into())),
+                    (Field::Class, Operator::Equal, Value::String("trap".into())),
+                    (Field::Text, Operator::Equal, Value::String("negate the summon".into())),
                 ]
             ))
         );
@@ -183,6 +187,6 @@ mod tests {
     fn quoted_value_test() {
         let (rest, filter) = parse_raw_filter(r#"o:"destroy that target""#).unwrap();
         assert_eq!(rest, "");
-        assert_eq!(filter, (Field::Text, Operator::Equals, Value::String("destroy that target".into())));
+        assert_eq!(filter, (Field::Text, Operator::Equal, Value::String("destroy that target".into())));
     }
 }

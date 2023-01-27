@@ -46,7 +46,7 @@ pub fn fallback_filter(query: &str) -> Result<RawCardFilter, String> {
         return Err(format!("Invalid query: {query}"));
     }
     let q = query.to_lowercase();
-    Ok((Field::Name, Operator::Equals, Value::String(q)))
+    Ok((Field::Name, Operator::Equal, Value::String(q)))
 }
 
 pub fn build_filter(query: RawCardFilter) -> Result<CardFilter, String> {
@@ -60,11 +60,14 @@ pub fn build_filter(query: RawCardFilter) -> Result<CardFilter, String> {
             Box::new(move |card| card.def.is_none() && card.link_rating.is_none() && card.card_type.contains("monster"))
         }
         (Field::Level, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.level, n)),
-        (Field::Type, Operator::Equals, Value::String(s)) => Box::new(move |card| card.r#type == s),
-        (Field::Attribute, Operator::Equals, Value::String(s)) => Box::new(move |card| card.attribute.contains(&s)),
-        (Field::Class, Operator::Equals, Value::String(s)) => Box::new(move |card| card.card_type.contains(&s)),
-        (Field::Text, Operator::Equals, Value::String(s)) => Box::new(move |card| card.text.contains(&s)),
-        (Field::Name, Operator::Equals, Value::String(s)) => Box::new(move |card| card.name.contains(&s)),
+        (Field::Type, Operator::Equal, Value::String(s)) => Box::new(move |card| card.r#type == s),
+        (Field::Type, Operator::NotEqual, Value::String(s)) => Box::new(move |card| card.r#type != s),
+        (Field::Attribute, Operator::Equal, Value::String(s)) => Box::new(move |card| card.attribute.contains(&s)),
+        (Field::Attribute, Operator::NotEqual, Value::String(s)) => Box::new(move |card| !card.attribute.contains(&s)),
+        (Field::Class, Operator::Equal, Value::String(s)) => Box::new(move |card| card.card_type.contains(&s)),
+        (Field::Class, Operator::NotEqual, Value::String(s)) => Box::new(move |card| !card.card_type.contains(&s)),
+        (Field::Text, Operator::Equal, Value::String(s)) => Box::new(move |card| card.text.contains(&s)),
+        (Field::Name, Operator::Equal, Value::String(s)) => Box::new(move |card| card.name.contains(&s)),
         q => Err(format!("unknown query: {q:?}"))?,
     })
 }
