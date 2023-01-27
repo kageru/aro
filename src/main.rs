@@ -9,6 +9,8 @@ mod data;
 mod filter;
 mod parser;
 
+const RESULT_LIMIT: usize = 100;
+
 static CARDS: LazyLock<Vec<Card>> = LazyLock::new(|| {
     serde_json::from_reader::<_, CardInfo>(BufReader::new(File::open("cards.json").expect("cards.json not found")))
         .expect("Could not deserialize cards")
@@ -58,8 +60,12 @@ async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> Resul
     if let Some(q) = q {
         let query = parser::parse_filters(&q)?;
         let now = Instant::now();
-        let matches: Vec<&Card> =
-            SEARCH_CARDS.iter().filter(|card| query.iter().all(|q| q(card))).map(|c| CARDS_BY_ID.get(&c.id).unwrap()).collect();
+        let matches: Vec<&Card> = SEARCH_CARDS
+            .iter()
+            .filter(|card| query.iter().all(|q| q(card)))
+            .map(|c| CARDS_BY_ID.get(&c.id).unwrap())
+            .take(RESULT_LIMIT)
+            .collect();
         write!(res, "Showing {} results (took {:?})<br/><br/>", matches.len(), now.elapsed())?;
         for card in matches {
             res.push_str(&card.to_string());
