@@ -40,10 +40,10 @@ impl Display for Card {
             write!(f, "{attr}/")?;
         }
         write!(f, "{} {})", self.r#type, self.card_type)?;
-        f.write_str("\n")?;
+        f.write_str("<br/>")?;
         f.write_str(&self.text)?;
         if self.card_type.contains(&String::from("Monster")) {
-            f.write_str("\n")?;
+            f.write_str("<br/>")?;
             match (self.atk, self.def) {
                 (Some(atk), Some(def)) => write!(f, "{atk} ATK / {def} DEF")?,
                 (Some(atk), None) if self.link_rating.is_some() => write!(f, "{atk} ATK")?,

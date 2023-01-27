@@ -61,6 +61,7 @@ pub fn build_filter(query: RawCardFilter) -> Result<CardFilter, String> {
         }
         (Field::Level, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.level, n)),
         (Field::Type, Operator::Equals, Value::String(s)) => Box::new(move |card| card.r#type == s),
+        (Field::Attribute, Operator::Equals, Value::String(s)) => Box::new(move |card| card.attribute.contains(&s)),
         (Field::Class, Operator::Equals, Value::String(s)) => Box::new(move |card| card.card_type.contains(&s)),
         (Field::Text, Operator::Equals, Value::String(s)) => Box::new(move |card| card.text.contains(&s)),
         (Field::Name, Operator::Equals, Value::String(s)) => Box::new(move |card| card.name.contains(&s)),
