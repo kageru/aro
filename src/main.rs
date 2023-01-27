@@ -2,6 +2,7 @@
 use actix_web::{get, http::header, web, App, Either, HttpResponse, HttpServer};
 use data::{Card, CardInfo};
 use filter::SearchCard;
+use itertools::Itertools;
 use serde::Deserialize;
 use std::{collections::HashMap, fmt::Write, fs::File, io::BufReader, net::Ipv4Addr, sync::LazyLock, time::Instant};
 
@@ -46,11 +47,33 @@ async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> Resul
     write!(
         res,
         r#"
-<html><body>
+<html>
+<head>
+<style>
+html {{
+    padding-top: 2em;
+    background-color: #060404;
+    color: #ececef;
+    font-family: 'Lato', 'Segoe UI', sans-serif;
+    font-size: 14pt;
+    line-height: 130%;
+}}
+body {{
+    background-color: #241e1e;
+    border-radius:2em;
+    padding: 5%;
+    width: 80%;
+    margin: auto;
+}}
+em {{
+    font-size: 75%;
+}}
+</style>
+</head>
+<body>
 <form action="/">
-  <label for="fname">Search query:</label><br>
-  <input type="text" name="q" value="{}"><br>
-  <input type="submit" value="Submit">
+  <input style="width: 80%" type="text" name="q" id="searchbox" placeholder="Enter search query" value="{}">
+  <input style="width: 15%; right: 0" type="submit" value="Submit">
 </form>"#,
         match &q {
             Some(q) => q,
@@ -62,14 +85,20 @@ async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> Resul
         let now = Instant::now();
         let matches: Vec<&Card> = SEARCH_CARDS
             .iter()
-            .filter(|card| query.iter().all(|q| q(card)))
+            .filter(|card| query.iter().all(|(_, q)| q(card)))
             .map(|c| CARDS_BY_ID.get(&c.id).unwrap())
             .take(RESULT_LIMIT)
             .collect();
-        write!(res, "Showing {} results (took {:?})<br/><br/>", matches.len(), now.elapsed())?;
+        write!(
+            res,
+            "<em>Showing {} results where {} (took {:?})</em><br/><hr/><br/>",
+            matches.len(),
+            query.iter().map(|(f, _)| f.to_string()).join(" and "),
+            now.elapsed()
+        )?;
         for card in matches {
             res.push_str(&card.to_string());
-            res.push_str("<br/><br/>");
+            res.push_str("<br/><hr/><br/>");
         }
         write!(res, "</body></html>")?;
     } else {

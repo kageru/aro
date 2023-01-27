@@ -1,6 +1,6 @@
 use crate::{
     data::Card,
-    parser::{Field, Operator, Value, OPERATOR_CHARS},
+    parser::{Field, Operator, RawCardFilter, Value, OPERATOR_CHARS},
 };
 
 /// A struct derived from `Card` that has all fields lowercased for easier search
@@ -39,35 +39,36 @@ impl From<&Card> for SearchCard {
 }
 
 pub type CardFilter = Box<dyn Fn(&SearchCard) -> bool>;
-pub type RawCardFilter = (Field, Operator, Value);
 
 pub fn fallback_filter(query: &str) -> Result<RawCardFilter, String> {
     if query.contains(OPERATOR_CHARS) {
         return Err(format!("Invalid query: {query}"));
     }
     let q = query.to_lowercase();
-    Ok((Field::Name, Operator::Equal, Value::String(q)))
+    Ok(RawCardFilter(Field::Name, Operator::Equal, Value::String(q)))
 }
 
 pub fn build_filter(query: RawCardFilter) -> Result<CardFilter, String> {
     Ok(match query {
-        (Field::Atk, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.atk, n)),
-        (Field::Def, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.def, n)),
+        RawCardFilter(Field::Atk, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.atk, n)),
+        RawCardFilter(Field::Def, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.def, n)),
         // ? ATK/DEF is modeled as None in the source json. At least for some monsters.
         // Let’s at least find those.
-        (Field::Atk, _, Value::String(s)) if s == "?" => Box::new(move |card| card.atk.is_none() && card.card_type.contains("monster")),
-        (Field::Def, _, Value::String(s)) if s == "?" => {
+        RawCardFilter(Field::Atk, _, Value::String(s)) if s == "?" => {
+            Box::new(move |card| card.atk.is_none() && card.card_type.contains("monster"))
+        }
+        RawCardFilter(Field::Def, _, Value::String(s)) if s == "?" => {
             Box::new(move |card| card.def.is_none() && card.link_rating.is_none() && card.card_type.contains("monster"))
         }
-        (Field::Level, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.level, n)),
-        (Field::Type, Operator::Equal, Value::String(s)) => Box::new(move |card| card.r#type == s),
-        (Field::Type, Operator::NotEqual, Value::String(s)) => Box::new(move |card| card.r#type != s),
-        (Field::Attribute, Operator::Equal, Value::String(s)) => Box::new(move |card| card.attribute.contains(&s)),
-        (Field::Attribute, Operator::NotEqual, Value::String(s)) => Box::new(move |card| !card.attribute.contains(&s)),
-        (Field::Class, Operator::Equal, Value::String(s)) => Box::new(move |card| card.card_type.contains(&s)),
-        (Field::Class, Operator::NotEqual, Value::String(s)) => Box::new(move |card| !card.card_type.contains(&s)),
-        (Field::Text, Operator::Equal, Value::String(s)) => Box::new(move |card| card.text.contains(&s)),
-        (Field::Name, Operator::Equal, Value::String(s)) => Box::new(move |card| card.name.contains(&s)),
+        RawCardFilter(Field::Level, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.level, n)),
+        RawCardFilter(Field::Type, Operator::Equal, Value::String(s)) => Box::new(move |card| card.r#type == s),
+        RawCardFilter(Field::Type, Operator::NotEqual, Value::String(s)) => Box::new(move |card| card.r#type != s),
+        RawCardFilter(Field::Attribute, Operator::Equal, Value::String(s)) => Box::new(move |card| card.attribute.contains(&s)),
+        RawCardFilter(Field::Attribute, Operator::NotEqual, Value::String(s)) => Box::new(move |card| !card.attribute.contains(&s)),
+        RawCardFilter(Field::Class, Operator::Equal, Value::String(s)) => Box::new(move |card| card.card_type.contains(&s)),
+        RawCardFilter(Field::Class, Operator::NotEqual, Value::String(s)) => Box::new(move |card| !card.card_type.contains(&s)),
+        RawCardFilter(Field::Text, Operator::Equal, Value::String(s)) => Box::new(move |card| card.text.contains(&s)),
+        RawCardFilter(Field::Name, Operator::Equal, Value::String(s)) => Box::new(move |card| card.name.contains(&s)),
         q => Err(format!("unknown query: {q:?}"))?,
     })
 }
@@ -81,8 +82,8 @@ mod tests {
     fn level_filter_test() {
         let lacooda = SearchCard::from(&serde_json::from_str::<Card>(RAW_MONSTER).unwrap());
         let filter_level_3 = parse_filters("l=3").unwrap();
-        assert!(filter_level_3[0](&lacooda));
+        assert!(filter_level_3[0].1(&lacooda));
         let filter_level_5 = parse_filters("l=5").unwrap();
-        assert!(!filter_level_5[0](&lacooda));
+        assert!(!filter_level_5[0].1(&lacooda));
     }
 }

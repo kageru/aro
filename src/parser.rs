@@ -1,21 +1,24 @@
-use std::str::FromStr;
+use std::{
+    fmt::{self, Display},
+    str::FromStr,
+};
 
-use crate::filter::{build_filter, fallback_filter, CardFilter, RawCardFilter};
+use crate::filter::{build_filter, fallback_filter, CardFilter};
 use nom::{
     branch::alt,
     bytes::complete::{take_until1, take_while, take_while_m_n},
     character::complete::{char, multispace0},
-    combinator::{complete, map_res, rest, verify},
+    combinator::{complete, map, map_res, rest, verify},
     multi::many_m_n,
     sequence::{delimited, preceded, tuple},
     IResult,
 };
 
-pub fn parse_filters(input: &str) -> Result<Vec<CardFilter>, String> {
+pub fn parse_filters(input: &str) -> Result<Vec<(RawCardFilter, CardFilter)>, String> {
     parse_raw_filters(input).map_err(|e| format!("Error while parsing filters “{input}”: {e:?}")).and_then(|(rest, mut v)| {
         if rest.is_empty() {
-            v.sort_unstable_by_key(|(f, _, _)| *f as u8);
-            v.into_iter().map(build_filter).collect()
+            v.sort_unstable_by_key(|RawCardFilter(f, _, _)| *f as u8);
+            v.into_iter().map(|r| build_filter(r.clone()).map(|f| (r, f))).collect()
         } else {
             Err(format!("Input was not fully parsed. Left over: “{rest}”"))
         }
@@ -31,7 +34,10 @@ fn word_non_empty(input: &str) -> IResult<&str, &str> {
 }
 
 fn parse_raw_filter(input: &str) -> IResult<&str, RawCardFilter> {
-    preceded(multispace0, alt((complete(tuple((field, operator, value))), map_res(word_non_empty, fallback_filter))))(input)
+    preceded(
+        multispace0,
+        alt((map(complete(tuple((field, operator, value))), |(f, o, v)| RawCardFilter(f, o, v)), map_res(word_non_empty, fallback_filter))),
+    )(input)
 }
 
 fn field(input: &str) -> IResult<&str, Field> {
@@ -56,14 +62,29 @@ fn value(input: &str) -> IResult<&str, Value> {
 /// This is used to sort filters before applying them.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Field {
-    Text = 0,
-    Name = 1,
-    Class = 2,
-    Attribute = 3,
+    Atk = 1,
+    Def = 2,
+    Level = 3,
     Type = 4,
-    Level = 5,
-    Atk = 6,
-    Def = 7,
+    Attribute = 5,
+    Class = 6,
+    Name = 7,
+    Text = 8,
+}
+
+impl Display for Field {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Text => "text",
+            Self::Name => "name",
+            Self::Class => "card type",
+            Self::Attribute => "attribute",
+            Self::Type => "type",
+            Self::Level => "level/rank",
+            Self::Atk => "ATK",
+            Self::Def => "DEF",
+        })
+    }
 }
 
 impl FromStr for Field {
@@ -124,10 +145,41 @@ impl FromStr for Operator {
     }
 }
 
+impl Display for Operator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Equal => "is",
+            Self::NotEqual => "is not",
+            Self::Less => "<",
+            Self::LessEqual => "<=",
+            Self::Greater => ">",
+            Self::GreaterEqual => ">=",
+        })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct RawCardFilter(pub Field, pub Operator, pub Value);
+
+impl Display for RawCardFilter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {} {}", self.0, self.1, self.2)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Value {
     String(String),
     Numerical(i32),
+}
+
+impl Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self {
+            Self::String(s) => f.write_str(s),
+            Self::Numerical(n) => write!(f, "{}", n),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -135,14 +187,14 @@ mod tests {
     use super::*;
     use test_case::test_case;
 
-    #[test_case("t=pyro" => Ok(("", (Field::Type, Operator::Equal, Value::String("pyro".into())))))]
-    #[test_case("t:PYro" => Ok(("", (Field::Type, Operator::Equal, Value::String("pyro".into())))); "input is lowercased")]
-    #[test_case("t==warrior" => Ok(("", (Field::Type, Operator::Equal, Value::String("warrior".into())))))]
-    #[test_case("atk>=100" => Ok(("", (Field::Atk, Operator::GreaterEqual, Value::Numerical(100)))))]
-    #[test_case("Necrovalley" => Ok(("", (Field::Name, Operator::Equal, Value::String("necrovalley".into())))))]
-    #[test_case("l=10" => Ok(("", (Field::Level, Operator::Equal, Value::Numerical(10)))))]
-    #[test_case("Ib" => Ok(("", (Field::Name, Operator::Equal, Value::String("ib".to_owned())))))]
-    #[test_case("c!=synchro" => Ok(("", (Field::Class, Operator::NotEqual, Value::String("synchro".to_owned())))))]
+    #[test_case("t=pyro" => Ok(("", RawCardFilter(Field::Type, Operator::Equal, Value::String("pyro".into())))))]
+    #[test_case("t:PYro" => Ok(("", RawCardFilter(Field::Type, Operator::Equal, Value::String("pyro".into())))); "input is lowercased")]
+    #[test_case("t==warrior" => Ok(("", RawCardFilter(Field::Type, Operator::Equal, Value::String("warrior".into())))))]
+    #[test_case("atk>=100" => Ok(("", RawCardFilter(Field::Atk, Operator::GreaterEqual, Value::Numerical(100)))))]
+    #[test_case("Necrovalley" => Ok(("", RawCardFilter(Field::Name, Operator::Equal, Value::String("necrovalley".into())))))]
+    #[test_case("l=10" => Ok(("", RawCardFilter(Field::Level, Operator::Equal, Value::Numerical(10)))))]
+    #[test_case("Ib" => Ok(("", RawCardFilter(Field::Name, Operator::Equal, Value::String("ib".to_owned())))))]
+    #[test_case("c!=synchro" => Ok(("", RawCardFilter(Field::Class, Operator::NotEqual, Value::String("synchro".to_owned())))))]
     fn successful_parsing_test(input: &str) -> IResult<&str, RawCardFilter> {
         parse_raw_filter(input)
     }
@@ -159,14 +211,17 @@ mod tests {
     #[test]
     fn sequential_parsing_test() {
         let (rest, filter) = parse_raw_filter("atk>=100 l:4").unwrap();
-        assert_eq!(filter, (Field::Atk, Operator::GreaterEqual, Value::Numerical(100)));
-        assert_eq!(parse_raw_filter(rest), Ok(("", (Field::Level, Operator::Equal, Value::Numerical(4)))));
+        assert_eq!(filter, RawCardFilter(Field::Atk, Operator::GreaterEqual, Value::Numerical(100)));
+        assert_eq!(parse_raw_filter(rest), Ok(("", RawCardFilter(Field::Level, Operator::Equal, Value::Numerical(4)))));
 
         assert_eq!(
             parse_raw_filters("atk>=100 l=4"),
             Ok((
                 "",
-                vec![(Field::Atk, Operator::GreaterEqual, Value::Numerical(100)), (Field::Level, Operator::Equal, Value::Numerical(4))]
+                vec![
+                    RawCardFilter(Field::Atk, Operator::GreaterEqual, Value::Numerical(100)),
+                    RawCardFilter(Field::Level, Operator::Equal, Value::Numerical(4))
+                ]
             ))
         );
 
@@ -175,9 +230,9 @@ mod tests {
             Ok((
                 "",
                 vec![
-                    (Field::Type, Operator::Equal, Value::String("counter".into())),
-                    (Field::Class, Operator::Equal, Value::String("trap".into())),
-                    (Field::Text, Operator::Equal, Value::String("negate the summon".into())),
+                    RawCardFilter(Field::Type, Operator::Equal, Value::String("counter".into())),
+                    RawCardFilter(Field::Class, Operator::Equal, Value::String("trap".into())),
+                    RawCardFilter(Field::Text, Operator::Equal, Value::String("negate the summon".into())),
                 ]
             ))
         );
@@ -187,6 +242,6 @@ mod tests {
     fn quoted_value_test() {
         let (rest, filter) = parse_raw_filter(r#"o:"destroy that target""#).unwrap();
         assert_eq!(rest, "");
-        assert_eq!(filter, (Field::Text, Operator::Equal, Value::String("destroy that target".into())));
+        assert_eq!(filter, RawCardFilter(Field::Text, Operator::Equal, Value::String("destroy that target".into())));
     }
 }
