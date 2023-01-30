@@ -29,7 +29,7 @@ async fn main() -> std::io::Result<()> {
     let num_cards = (CARDS_BY_ID.len() + SEARCH_CARDS.len()) / 2;
     println!("Read {num_cards} cards in {:?}", now.elapsed());
     HttpServer::new(|| App::new().service(search).service(card_info).service(help))
-        .bind((Ipv4Addr::from([127, 0, 0, 1]), 8080))?
+        .bind((Ipv4Addr::from([127, 0, 0, 1]), 1961))?
         .run()
         .await
 }
