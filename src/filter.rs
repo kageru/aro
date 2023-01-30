@@ -69,7 +69,9 @@ pub fn build_filter(query: RawCardFilter) -> Result<CardFilter, String> {
         RawCardFilter(Field::Class, Operator::Equal, Value::String(s)) => Box::new(move |card| card.card_type.contains(&s)),
         RawCardFilter(Field::Class, Operator::NotEqual, Value::String(s)) => Box::new(move |card| !card.card_type.contains(&s)),
         RawCardFilter(Field::Text, Operator::Equal, Value::String(s)) => Box::new(move |card| card.text.contains(&s)),
+        RawCardFilter(Field::Text, Operator::NotEqual, Value::String(s)) => Box::new(move |card| !card.text.contains(&s)),
         RawCardFilter(Field::Name, Operator::Equal, Value::String(s)) => Box::new(move |card| card.name.contains(&s)),
+        RawCardFilter(Field::Name, Operator::NotEqual, Value::String(s)) => Box::new(move |card| !card.name.contains(&s)),
         q => Err(format!("unknown query: {q:?}"))?,
     })
 }
