@@ -87,6 +87,7 @@ async fn card_info(card_id: web::Path<usize>) -> Result<HttpResponse, Box<dyn st
         }
         None => res.push_str("Card not found"),
     }
+    finish_document(&mut res);
     Ok(HttpResponse::Ok().insert_header(header::ContentType::html()).body(res))
 }
 
