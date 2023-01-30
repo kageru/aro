@@ -101,6 +101,7 @@ impl FromStr for Field {
             "c" | "class" => Self::Class,
             "o" | "eff" | "text" | "effect" | "e" => Self::Text,
             "lr" | "linkrating" => Self::LinkRating,
+            "name" => Self::Name,
             _ => Err(s.to_string())?,
         })
     }

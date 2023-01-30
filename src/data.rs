@@ -30,7 +30,7 @@ pub struct Card {
 
 impl Display for Card {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, r#"<h2><a href="/{}">{}</a></h2><br/><em>"#, &self.id, &self.name)?;
+        write!(f, r#"<h2><a href="/card/{}">{}</a></h2><br/><em>"#, &self.id, &self.name)?;
         if let Some(level) = self.level {
             if self.card_type.contains("XYZ") {
                 f.write_str("Rank ")?;

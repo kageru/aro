@@ -28,7 +28,10 @@ async fn main() -> std::io::Result<()> {
     // tap these so they’re initialized
     let num_cards = (CARDS_BY_ID.len() + SEARCH_CARDS.len()) / 2;
     println!("Read {num_cards} cards in {:?}", now.elapsed());
-    HttpServer::new(|| App::new().service(search).service(card_info)).bind((Ipv4Addr::from([127, 0, 0, 1]), 8080))?.run().await
+    HttpServer::new(|| App::new().service(search).service(card_info).service(help))
+        .bind((Ipv4Addr::from([127, 0, 0, 1]), 8080))?
+        .run()
+        .await
 }
 
 #[derive(Debug, Deserialize)]
@@ -37,6 +40,13 @@ struct Query {
 }
 
 const HEADER: &str = include_str!("../static/header.html");
+const HELP_CONTENT: &str = include_str!("../static/help.html");
+const FOOTER: &str = r#"<div id="bottom">
+<a href="/">Home</a>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<a href="/help">Query Syntax</a>
+</div>
+</body></html>"#;
 
 #[get("/")]
 async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> Result<HttpResponse, Box<dyn std::error::Error>> {
@@ -57,7 +67,7 @@ async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> Resul
     Ok(HttpResponse::Ok().insert_header(header::ContentType::html()).body(res))
 }
 
-#[get("/{id}")]
+#[get("/card/{id}")]
 async fn card_info(card_id: web::Path<usize>) -> Result<HttpResponse, Box<dyn std::error::Error>> {
     let mut res = String::with_capacity(2_000);
     res.push_str(HEADER);
@@ -77,6 +87,16 @@ async fn card_info(card_id: web::Path<usize>) -> Result<HttpResponse, Box<dyn st
         }
         None => res.push_str("Card not found"),
     }
+    Ok(HttpResponse::Ok().insert_header(header::ContentType::html()).body(res))
+}
+
+#[get("/help")]
+async fn help() -> Result<HttpResponse, Box<dyn std::error::Error>> {
+    let mut res = String::with_capacity(HEADER.len() + HELP_CONTENT.len() + FOOTER.len() + 250);
+    res.push_str(HEADER);
+    render_searchbox(&mut res, &None)?;
+    res.push_str(HELP_CONTENT);
+    res.push_str(FOOTER);
     Ok(HttpResponse::Ok().insert_header(header::ContentType::html()).body(res))
 }
 
@@ -123,7 +143,7 @@ fn render_results(res: &mut String, query: &str) -> Result<(), Box<dyn std::erro
     for card in matches {
         write!(
             res,
-            r#"<tr><td>{card}</td><td><a href="/{}"><img src="http://localhost:80/img/{}.jpg" class="thumb"/></a></td></tr>"#,
+            r#"<tr><td>{card}</td><td><a href="/card/{}"><img src="http://localhost:80/img/{}.jpg" class="thumb"/></a></td></tr>"#,
             card.id, card.id
         )?;
     }
@@ -131,5 +151,5 @@ fn render_results(res: &mut String, query: &str) -> Result<(), Box<dyn std::erro
 }
 
 fn finish_document(res: &mut String) {
-    res.push_str("</body></html>")
+    res.push_str(FOOTER)
 }
