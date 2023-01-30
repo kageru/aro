@@ -30,7 +30,7 @@ pub struct Card {
 
 impl Display for Card {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} (", &self.name)?;
+        write!(f, r#"<h2><a href="/{}">{}</a></h2><br/><em>"#, &self.id, &self.name)?;
         if let Some(level) = self.level {
             if self.card_type.contains("XYZ") {
                 f.write_str("Rank ")?;
@@ -44,9 +44,7 @@ impl Display for Card {
         if let Some(attr) = &self.attribute {
             write!(f, "{attr}/")?;
         }
-        write!(f, "{} {})", self.r#type, self.card_type)?;
-        f.write_str("<br/>")?;
-        f.write_str(&self.text)?;
+        write!(f, "{} {}", self.r#type, self.card_type)?;
         if self.card_type.contains(&String::from("Monster")) {
             f.write_str("<br/>")?;
             match (self.atk, self.def) {
@@ -57,6 +55,8 @@ impl Display for Card {
                 (None, None) => write!(f, "? ATK / ? DEF")?,
             }
         }
+        f.write_str("</em><br/>")?;
+        f.write_str(&self.text)?;
         Ok(())
     }
 }

@@ -10,7 +10,7 @@
 }
 
 html {
-  padding-top: 2em;
+  padding: 2em 0;
   background-color: var(--bg);
   color: var(--fg);
   font-family: 'Lato', 'Segoe UI', sans-serif;
@@ -52,8 +52,62 @@ form > *:focus {
   width: 10%;
 }
 
+a {
+  color: var(--hl);
+}
+
 hr {
   border-color: var(--hl);
+}
+
+table {
+  width: 100%;
+}
+td {
+  border-bottom: 2px solid var(--hl);
+  padding: 0.5em 0;
+  text-align: justify;
+}
+td:first-child {
+  width: 80%;
+  padding-right: 1em;
+}
+td:nth-child(2) {
+  width: 20%;
+}
+
+h1, h2 {
+  margin-block-end: 0;
+  font-weight: normal;
+}
+h2 {
+  font-size: 120%;
+}
+
+.thumb {
+  max-height: 250px;
+}
+
+.column {
+  float: left;
+  margin-bottom: 2em;
+}
+.left {
+  width: 60%;
+  padding-right: 1em;
+}
+.right {
+  width: 35%;
+}
+@media screen and (max-width: 680px) {
+  .column {
+    width: 100%;
+  }
+}
+.row:after {
+  content: "";
+  display: table;
+  clear: both;
 }
 </style>
 </head>
