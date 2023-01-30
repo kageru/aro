@@ -61,6 +61,7 @@ pub fn build_filter(query: RawCardFilter) -> Result<CardFilter, String> {
             Box::new(move |card| card.def.is_none() && card.link_rating.is_none() && card.card_type.contains("monster"))
         }
         RawCardFilter(Field::Level, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.level, n)),
+        RawCardFilter(Field::LinkRating, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.link_rating, n)),
         RawCardFilter(Field::Type, Operator::Equal, Value::String(s)) => Box::new(move |card| card.r#type == s),
         RawCardFilter(Field::Type, Operator::NotEqual, Value::String(s)) => Box::new(move |card| card.r#type != s),
         RawCardFilter(Field::Attribute, Operator::Equal, Value::String(s)) => Box::new(move |card| card.attribute.contains(&s)),
