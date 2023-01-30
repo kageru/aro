@@ -80,7 +80,7 @@ async fn card_info(card_id: web::Path<usize>) -> Result<HttpResponse, Box<dyn st
                 r#"
 <div class="row">
     <div class="column left">{card}</div>
-    <div class="column right"><img style="width: 100%;" src="http://localhost:80/img/{}.jpg"/></div>
+    <div class="column right"><img style="width: 100%;" src="/static/full/{}.jpg"/></div>
 </div>"#,
                 card.id,
             )?;
@@ -143,7 +143,7 @@ fn render_results(res: &mut String, query: &str) -> Result<(), Box<dyn std::erro
     for card in matches {
         write!(
             res,
-            r#"<tr><td>{card}</td><td><a href="/card/{}"><img src="http://localhost:80/img/{}.jpg" class="thumb"/></a></td></tr>"#,
+            r#"<tr><td>{card}</td><td><a href="/card/{}"><img src="/static/thumb/{}.jpg" class="thumb"/></a></td></tr>"#,
             card.id, card.id
         )?;
     }
