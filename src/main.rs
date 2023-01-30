@@ -36,6 +36,8 @@ struct Query {
     q: String,
 }
 
+const HEADER: &str = include_str!("../static/header.html");
+
 #[get("/")]
 async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> Result<HttpResponse, Box<dyn std::error::Error>> {
     let q = match q {
@@ -44,36 +46,12 @@ async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> Resul
         None => None,
     };
     let mut res = String::with_capacity(10_000);
+    res.write_str(HEADER)?;
     write!(
         res,
         r#"
-<html>
-<head>
-<style>
-html {{
-    padding-top: 2em;
-    background-color: #060404;
-    color: #ececef;
-    font-family: 'Lato', 'Segoe UI', sans-serif;
-    font-size: 14pt;
-    line-height: 130%;
-}}
-body {{
-    background-color: #241e1e;
-    border-radius:2em;
-    padding: 5%;
-    width: 80%;
-    margin: auto;
-}}
-em {{
-    font-size: 75%;
-}}
-</style>
-</head>
-<body>
 <form action="/">
-  <input style="width: 80%" type="text" name="q" id="searchbox" placeholder="Enter search query" value="{}">
-  <input style="width: 15%; right: 0" type="submit" value="Submit">
+  <input type="text" name="q" id="searchbox" placeholder="Enter query (e.g. l:5 c:synchro atk>2000)" value="{}"><input type="submit" id="submit" value="🔍">
 </form>"#,
         match &q {
             Some(q) => q,
@@ -91,14 +69,14 @@ em {{
             .collect();
         write!(
             res,
-            "<em>Showing {} results where {} (took {:?})</em><br/><hr/><br/>",
+            "<span class=\"meta\">Showing {} results where {} (took {:?})</span><hr/>",
             matches.len(),
             query.iter().map(|(f, _)| f.to_string()).join(" and "),
             now.elapsed()
         )?;
         for card in matches {
             res.push_str(&card.to_string());
-            res.push_str("<br/><hr/><br/>");
+            res.push_str("<hr/>");
         }
         write!(res, "</body></html>")?;
     } else {

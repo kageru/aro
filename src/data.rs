@@ -32,7 +32,12 @@ impl Display for Card {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} (", &self.name)?;
         if let Some(level) = self.level {
-            write!(f, "Level {level} ")?;
+            if self.card_type.contains("XYZ") {
+                f.write_str("Rank ")?;
+            } else {
+                f.write_str("Level ")?;
+            }
+            write!(f, "{level} ")?;
         } else if let Some(lr) = self.link_rating {
             write!(f, "Link {lr} ")?;
         }
