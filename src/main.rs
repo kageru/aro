@@ -18,7 +18,7 @@ static CARDS: LazyLock<Vec<Card>> = LazyLock::new(|| {
         .data
 });
 static CARDS_BY_ID: LazyLock<HashMap<usize, Card>> =
-    LazyLock::new(|| CARDS.iter().map(|c| (c.id, Card { text: c.text.replace("\r", "").replace('\n', "<br/>"), ..c.clone() })).collect());
+    LazyLock::new(|| CARDS.iter().map(|c| (c.id, Card { text: c.text.replace('\r', "").replace('\n', "<br/>"), ..c.clone() })).collect());
 static SEARCH_CARDS: LazyLock<Vec<SearchCard>> = LazyLock::new(|| CARDS.iter().map(SearchCard::from).collect());
 
 #[actix_web::main]
@@ -109,14 +109,14 @@ fn render_searchbox(res: &mut String, query: &Option<String>) -> std::fmt::Resul
   <input type="text" name="q" id="searchbox" placeholder="Enter query (e.g. l:5 c:synchro atk>2000)" value="{}"><input type="submit" id="submit" value="🔍">
 </form>"#,
         match &query {
-            Some(q) => q,
-            None => "",
+            Some(q) => q.replace('"', "&quot;"),
+            None => String::new(),
         }
     )
 }
 
 fn render_results(res: &mut String, query: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let query = match parser::parse_filters(query) {
+    let (raw_filters, query) = match parser::parse_filters(query) {
         Ok(q) => q,
         Err(e) => {
             write!(res, "Could not parse query: {e:?}")?;
@@ -126,7 +126,7 @@ fn render_results(res: &mut String, query: &str) -> Result<(), Box<dyn std::erro
     let now = Instant::now();
     let matches: Vec<&Card> = SEARCH_CARDS
         .iter()
-        .filter(|card| query.iter().all(|(_, q)| q(card)))
+        .filter(|card| query.iter().all(|q| q(card)))
         .map(|c| CARDS_BY_ID.get(&c.id).unwrap())
         .take(RESULT_LIMIT)
         .collect();
@@ -134,7 +134,7 @@ fn render_results(res: &mut String, query: &str) -> Result<(), Box<dyn std::erro
         res,
         "<span class=\"meta\">Showing {} results where {} (took {:?})</span>",
         matches.len(),
-        query.iter().map(|(f, _)| f.to_string()).join(" and "),
+        raw_filters.iter().map(|f| f.to_string()).join(" and "),
         now.elapsed()
     )?;
     if matches.is_empty() {

@@ -14,11 +14,11 @@ use nom::{
     IResult,
 };
 
-pub fn parse_filters(input: &str) -> Result<Vec<(RawCardFilter, CardFilter)>, String> {
+pub fn parse_filters(input: &str) -> Result<(Vec<RawCardFilter>, Vec<CardFilter>), String> {
     parse_raw_filters(input).map_err(|e| format!("Error while parsing filters “{input}”: {e:?}")).and_then(|(rest, mut v)| {
         if rest.is_empty() {
             v.sort_unstable_by_key(|RawCardFilter(f, _, _)| *f as u8);
-            v.into_iter().map(|r| build_filter(r.clone()).map(|f| (r, f))).collect()
+            Ok((v.clone(), v.into_iter().map(|r| build_filter(r)).collect::<Result<Vec<_>, _>>()?))
         } else {
             Err(format!("Input was not fully parsed. Left over: “{rest}”"))
         }
@@ -180,8 +180,14 @@ pub enum Value {
 impl Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self {
-            Self::String(s) => f.write_str(s),
-            Self::Numerical(n) => write!(f, "{}", n),
+            Self::String(s) => {
+                if s.contains(' ') {
+                    write!(f, "\"{s}\"")
+                } else {
+                    f.write_str(s)
+                }
+            }
+            Self::Numerical(n) => write!(f, "{n}"),
         }
     }
 }
