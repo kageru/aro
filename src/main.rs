@@ -21,6 +21,8 @@ static CARDS_BY_ID: LazyLock<HashMap<usize, Card>> =
     LazyLock::new(|| CARDS.iter().map(|c| (c.id, Card { text: c.text.replace('\r', "").replace('\n', "<br/>"), ..c.clone() })).collect());
 static SEARCH_CARDS: LazyLock<Vec<SearchCard>> = LazyLock::new(|| CARDS.iter().map(SearchCard::from).collect());
 
+static IMG_HOST: LazyLock<String> = LazyLock::new(|| std::env::var("IMG_HOST").unwrap_or_else(|_| String::new()));
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let now = Instant::now();
@@ -78,10 +80,11 @@ async fn card_info(card_id: web::Path<usize>) -> Result<HttpResponse, Box<dyn st
             write!(
                 res,
                 r#"
-<div class="row">
-    <div class="column left">{card}</div>
-    <div class="column right"><img style="width: 100%;" src="/static/full/{}.jpg"/></div>
+<div>
+    <img class="fullimage" src="{}/static/full/{}.jpg"/>
+    {card}
 </div>"#,
+                IMG_HOST.as_str(),
                 card.id,
             )?;
         }
@@ -140,14 +143,17 @@ fn render_results(res: &mut String, query: &str) -> Result<(), Box<dyn std::erro
     if matches.is_empty() {
         return Ok(());
     }
-    res.push_str("<table>");
+    res.push_str("<div style=\"display: flex; flex-wrap: wrap;\">");
     for card in matches {
         write!(
             res,
-            r#"<tr><td>{card}</td><td><a href="/card/{}"><img src="/static/thumb/{}.jpg" class="thumb"/></a></td></tr>"#,
-            card.id, card.id
+            r#"<div class="cardresult"><a href="/card/{}"><img src="{}/static/thumb/{}.jpg" class="thumb"/></a>{card}</div>"#,
+            card.id,
+            IMG_HOST.as_str(),
+            card.id
         )?;
     }
+    res.push_str("</div>");
     Ok(())
 }
 

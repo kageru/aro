@@ -55,8 +55,7 @@ impl Display for Card {
                 (None, None) => write!(f, "? ATK / ? DEF")?,
             }
         }
-        f.write_str("</em><br/>")?;
-        f.write_str(&self.text)?;
+        write!(f, "</em><p>{}</p>", &self.text)?;
         Ok(())
     }
 }
