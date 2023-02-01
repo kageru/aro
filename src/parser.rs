@@ -66,11 +66,12 @@ pub enum Field {
     Def = 2,
     Level = 3,
     LinkRating = 4,
-    Type = 5,
-    Attribute = 6,
-    Class = 7,
-    Name = 8,
-    Text = 9,
+    Set = 5,
+    Type = 6,
+    Attribute = 7,
+    Class = 8,
+    Name = 9,
+    Text = 10,
 }
 
 impl Display for Field {
@@ -85,6 +86,7 @@ impl Display for Field {
             Self::Atk => "ATK",
             Self::Def => "DEF",
             Self::LinkRating => "link rating",
+            Self::Set => "set",
         })
     }
 }
@@ -102,6 +104,7 @@ impl FromStr for Field {
             "o" | "eff" | "text" | "effect" | "e" => Self::Text,
             "lr" | "linkrating" => Self::LinkRating,
             "name" => Self::Name,
+            "set" | "s" => Self::Set,
             _ => Err(s.to_string())?,
         })
     }

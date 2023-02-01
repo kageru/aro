@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use std::fmt::{self, Display};
+use std::fmt::{self, Display, Write};
 
 #[derive(Debug, Deserialize, PartialEq, Eq, Clone)]
 pub struct CardInfo {
@@ -26,6 +26,26 @@ pub struct Card {
     pub link_rating: Option<i32>,
     #[serde(rename = "linkmarkers")]
     pub link_arrows: Option<Vec<String>>,
+    #[serde(default)]
+    pub card_sets:   Vec<CardSet>,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Eq, Clone, Default)]
+pub struct CardSet {
+    pub set_name:   String,
+    pub set_code:   String,
+    pub set_rarity: String,
+}
+
+impl Card {
+    pub fn extended_info(&self) -> Result<String, fmt::Error> {
+        let mut s = String::with_capacity(1000);
+        s.push_str("<h3>Printings:</h3>");
+        for printing in &self.card_sets {
+            write!(s, "{}: {} ({})<br/>", printing.set_name, printing.set_code, printing.set_rarity)?;
+        }
+        Ok(s)
+    }
 }
 
 impl Display for Card {
@@ -70,7 +90,23 @@ pub mod tests {
       "name": "The Cheerful Coffin",
       "type": "Spell Card",
       "desc": "Discard up to 3 Monster Cards from your hand to the Graveyard.",
-      "race": "Normal"
+      "race": "Normal",
+      "card_sets": [
+        {
+          "set_name": "Dark Beginning 1",
+          "set_code": "DB1-EN167",
+          "set_rarity": "Common",
+          "set_rarity_code": "(C)",
+          "set_price": "1.41"
+        },
+        {
+          "set_name": "Metal Raiders",
+          "set_code": "MRD-059",
+          "set_rarity": "Common",
+          "set_rarity_code": "(C)",
+          "set_price": "1.55"
+        }
+      ]
     }"#;
 
     pub const RAW_MONSTER: &str = r#"
@@ -83,7 +119,23 @@ pub mod tests {
        "def": 600,
        "level": 3,
        "race": "Zombie",
-       "attribute": "EARTH"
+       "attribute": "EARTH",
+       "card_sets": [
+         {
+           "set_name": "Astral Pack Three",
+           "set_code": "AP03-EN018",
+           "set_rarity": "Common",
+           "set_rarity_code": "(C)",
+           "set_price": "1.24"
+         },
+         {
+           "set_name": "Gold Series",
+           "set_code": "GLD1-EN010",
+           "set_rarity": "Common",
+           "set_rarity_code": "(C)",
+           "set_price": "2.07"
+         }
+       ]
     }"#;
 
     #[test]
@@ -97,6 +149,14 @@ pub mod tests {
                 name: "The Cheerful Coffin".to_owned(),
                 text: "Discard up to 3 Monster Cards from your hand to the Graveyard.".to_owned(),
                 r#type: "Normal".to_owned(),
+                card_sets: vec![
+                    CardSet {
+                        set_name:   "Dark Beginning 1".to_owned(),
+                        set_code:   "DB1-EN167".to_owned(),
+                        set_rarity: "Common".to_owned(),
+                    },
+                    CardSet { set_name: "Metal Raiders".to_owned(), set_code: "MRD-059".to_owned(), set_rarity: "Common".to_owned() }
+                ],
                 ..Default::default()
             }
         )
@@ -119,6 +179,14 @@ pub mod tests {
                 level: Some(3),
                 r#type: "Zombie".to_owned(),
                 attribute: Some("EARTH".to_owned()),
+                card_sets: vec![
+                    CardSet {
+                        set_name:   "Astral Pack Three".to_owned(),
+                        set_code:   "AP03-EN018".to_owned(),
+                        set_rarity: "Common".to_owned(),
+                    },
+                    CardSet { set_name: "Gold Series".to_owned(), set_code: "GLD1-EN010".to_owned(), set_rarity: "Common".to_owned() }
+                ],
                 ..Default::default()
             },
         )

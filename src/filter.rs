@@ -18,6 +18,7 @@ pub struct SearchCard {
     level:       Option<i32>,
     link_rating: Option<i32>,
     link_arrows: Option<Vec<String>>,
+    sets:        Vec<String>,
 }
 
 impl From<&Card> for SearchCard {
@@ -34,6 +35,7 @@ impl From<&Card> for SearchCard {
             level:       card.level,
             link_rating: card.link_rating,
             link_arrows: card.link_arrows.as_ref().map(|arrows| arrows.iter().map(|a| a.to_lowercase()).collect()),
+            sets:        card.card_sets.iter().filter_map(|s| s.set_code.split('-').next().map(str::to_lowercase)).collect(),
         }
     }
 }
@@ -72,6 +74,7 @@ pub fn build_filter(query: RawCardFilter) -> Result<CardFilter, String> {
         RawCardFilter(Field::Text, Operator::NotEqual, Value::String(s)) => Box::new(move |card| !card.text.contains(&s)),
         RawCardFilter(Field::Name, Operator::Equal, Value::String(s)) => Box::new(move |card| card.name.contains(&s)),
         RawCardFilter(Field::Name, Operator::NotEqual, Value::String(s)) => Box::new(move |card| !card.name.contains(&s)),
+        RawCardFilter(Field::Set, Operator::Equal, Value::String(s)) => Box::new(move |card| card.sets.contains(&s)),
         q => Err(format!("unknown query: {q:?}"))?,
     })
 }
@@ -85,8 +88,8 @@ mod tests {
     fn level_filter_test() {
         let lacooda = SearchCard::from(&serde_json::from_str::<Card>(RAW_MONSTER).unwrap());
         let filter_level_3 = parse_filters("l=3").unwrap();
-        assert!(filter_level_3[0].1(&lacooda));
+        assert!(filter_level_3.1[0](&lacooda));
         let filter_level_5 = parse_filters("l=5").unwrap();
-        assert!(!filter_level_5[0].1(&lacooda));
+        assert!(!filter_level_5.1[0](&lacooda));
     }
 }

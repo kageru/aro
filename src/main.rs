@@ -83,9 +83,11 @@ async fn card_info(card_id: web::Path<usize>) -> Result<HttpResponse, Box<dyn st
 <div>
     <img class="fullimage" src="{}/static/full/{}.jpg"/>
     {card}
+    {}
 </div>"#,
                 IMG_HOST.as_str(),
                 card.id,
+                card.extended_info().unwrap_or_else(|_| String::new()),
             )?;
         }
         None => res.push_str("Card not found"),
