@@ -87,10 +87,25 @@ img {
   float: right;
   margin: 0 0 1em 1.5em;
 }
+/* 
+ * This is a big <a> element that looks and behaves more like a div
+ * because we can’t put a div inside an a.
+ */
 .cardresult {
-  margin: 1em;
+  display: block;
+  padding: 1em;
   flex-grow: 1;
   flex-basis: 25em;
+  transition-duration: 200ms;
+  text-decoration: none;
+  color: var(--fg);
+}
+.cardresult:hover {
+  background-color: var(--bg);
+}
+.cardname {
+  color: var(--hl);
+  text-decoration: underline;
 }
 
 @media screen and (max-width: 680px) {

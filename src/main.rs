@@ -161,7 +161,7 @@ fn render_results(res: &mut String, query: &str) -> Result<(), Box<dyn std::erro
     for card in matches {
         write!(
             res,
-            r#"<div class="cardresult"><a href="/card/{}"><img src="{}/static/thumb/{}.jpg" class="thumb"/></a>{card}</div>"#,
+            r#"<a class="cardresult" href="/card/{}"><img src="{}/static/thumb/{}.jpg" class="thumb"/>{card}</a>"#,
             card.id,
             IMG_HOST.as_str(),
             card.id
