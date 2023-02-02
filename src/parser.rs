@@ -64,14 +64,15 @@ fn value(input: &str) -> IResult<&str, Value> {
 pub enum Field {
     Atk = 1,
     Def = 2,
-    Level = 3,
-    LinkRating = 4,
-    Set = 5,
-    Type = 6,
-    Attribute = 7,
-    Class = 8,
-    Name = 9,
-    Text = 10,
+    Level = 4,
+    LinkRating = 6,
+    Year = 8,
+    Set = 10,
+    Type = 12,
+    Attribute = 14,
+    Class = 16,
+    Name = 18,
+    Text = 20,
 }
 
 impl Display for Field {
@@ -87,6 +88,7 @@ impl Display for Field {
             Self::Def => "DEF",
             Self::LinkRating => "link rating",
             Self::Set => "set",
+            Self::Year => "year",
         })
     }
 }
@@ -105,6 +107,7 @@ impl FromStr for Field {
             "lr" | "linkrating" => Self::LinkRating,
             "name" => Self::Name,
             "set" | "s" => Self::Set,
+            "year" | "y" => Self::Year,
             _ => Err(s.to_string())?,
         })
     }

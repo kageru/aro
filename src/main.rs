@@ -1,10 +1,11 @@
 #![feature(option_result_contains, once_cell)]
 use actix_web::{get, http::header, web, App, Either, HttpResponse, HttpServer};
-use data::{Card, CardInfo};
+use data::{Card, CardInfo, Set};
 use filter::SearchCard;
 use itertools::Itertools;
 use serde::Deserialize;
 use std::{collections::HashMap, fmt::Write, fs::File, io::BufReader, net::Ipv4Addr, sync::LazyLock, time::Instant};
+use time::Date;
 
 mod data;
 mod filter;
@@ -13,13 +14,24 @@ mod parser;
 const RESULT_LIMIT: usize = 100;
 
 static CARDS: LazyLock<Vec<Card>> = LazyLock::new(|| {
-    serde_json::from_reader::<_, CardInfo>(BufReader::new(File::open("cards.json").expect("cards.json not found")))
+    let mut cards = serde_json::from_reader::<_, CardInfo>(BufReader::new(File::open("cards.json").expect("cards.json not found")))
         .expect("Could not deserialize cards")
-        .data
+        .data;
+    cards.iter_mut().for_each(|c| {
+        c.card_sets.sort_unstable_by_key(|s| SETS_BY_NAME.get(&s.set_name.to_lowercase()).and_then(|s| s.tcg_date).unwrap_or(Date::MAX))
+    });
+    cards
 });
 static CARDS_BY_ID: LazyLock<HashMap<usize, Card>> =
     LazyLock::new(|| CARDS.iter().map(|c| (c.id, Card { text: c.text.replace('\r', "").replace('\n', "<br/>"), ..c.clone() })).collect());
 static SEARCH_CARDS: LazyLock<Vec<SearchCard>> = LazyLock::new(|| CARDS.iter().map(SearchCard::from).collect());
+static SETS_BY_NAME: LazyLock<HashMap<String, Set>> = LazyLock::new(|| {
+    serde_json::from_reader::<_, Vec<Set>>(BufReader::new(File::open("sets.json").expect("sets.json not found")))
+        .expect("Could not deserialize sets")
+        .into_iter()
+        .map(|s| (s.set_name.to_lowercase(), s))
+        .collect()
+});
 
 static IMG_HOST: LazyLock<String> = LazyLock::new(|| std::env::var("IMG_HOST").unwrap_or_else(|_| String::new()));
 

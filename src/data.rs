@@ -1,5 +1,8 @@
 use serde::Deserialize;
 use std::fmt::{self, Display, Write};
+use time::Date;
+
+use crate::SETS_BY_NAME;
 
 #[derive(Debug, Deserialize, PartialEq, Eq, Clone)]
 pub struct CardInfo {
@@ -37,12 +40,22 @@ pub struct CardSet {
     pub set_rarity: String,
 }
 
+#[derive(Debug, Deserialize, PartialEq, Eq, Clone)]
+pub struct Set {
+    pub set_name: String,
+    pub tcg_date: Option<Date>,
+}
+
 impl Card {
     pub fn extended_info(&self) -> Result<String, fmt::Error> {
         let mut s = String::with_capacity(1000);
         s.push_str("<h3>Printings:</h3>");
         for printing in &self.card_sets {
-            write!(s, "{}: {} ({})<br/>", printing.set_name, printing.set_code, printing.set_rarity)?;
+            write!(s, "{}: {} ({})", printing.set_name, printing.set_code, printing.set_rarity)?;
+            if let Some(date) = SETS_BY_NAME.get(&printing.set_name.to_lowercase()).and_then(|s| s.tcg_date) {
+                write!(s, " - {}", date)?;
+            }
+            s.push_str("<br/>");
         }
         Ok(s)
     }
