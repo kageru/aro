@@ -2,7 +2,7 @@ use serde::Deserialize;
 use std::fmt::{self, Display, Write};
 use time::Date;
 
-use crate::SETS_BY_NAME;
+use crate::{IMG_HOST, SETS_BY_NAME};
 
 #[derive(Debug, Deserialize, PartialEq, Eq, Clone)]
 pub struct CardInfo {
@@ -80,7 +80,18 @@ impl Card {
 
 impl Display for Card {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, r#"<h2 class="cardname">{}</h2><br/><em>"#, &self.name)?;
+        write!(
+            f,
+            r#"<h2 class="cardname">{} {}</h2><em>"#,
+            &self.name,
+            match self.banlist_info.map(|bi| bi.ban_tcg) {
+                Some(BanlistStatus::Banned) => format!(r#"<img class="banlist-icon" src="{}/static/forbidden.svg"/>"#, IMG_HOST.as_str()),
+                Some(BanlistStatus::Limited) => format!(r#"<img class="banlist-icon" src="{}/static/limited.svg"/>"#, IMG_HOST.as_str()),
+                Some(BanlistStatus::SemiLimited) =>
+                    format!(r#"<img class="banlist-icon" src="{}/static/semi_limited.svg"/>"#, IMG_HOST.as_str()),
+                _ => String::new(),
+            }
+        )?;
         if let Some(level) = self.level {
             if self.card_type.contains("XYZ") {
                 f.write_str("Rank ")?;

@@ -72,20 +72,23 @@ h2 {
   font-size: 120%;
 }
 
-img {
-  box-shadow: 10px 10px var(--bg);
-}
-
 .thumb {
   max-height: 250px;
   max-width: 30%;
   float: right;
   margin: 0 0 0.8em 1.2em;
+  box-shadow: 10px 10px var(--bg);
 }
 .fullimage {
   width: 30%;
   float: right;
   margin: 0 0 1em 1.5em;
+  box-shadow: 15px 15px var(--bg);
+}
+.banlist-icon {
+  height: 15pt;
+  width: 15pt;
+  vertical-align: top;
 }
 /* 
  * This is a big <a> element that looks and behaves more like a div
