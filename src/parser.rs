@@ -4,6 +4,7 @@ use std::{
 };
 
 use crate::filter::{build_filter, fallback_filter, CardFilter};
+use itertools::Itertools;
 use nom::{
     branch::alt,
     bytes::complete::{take_until1, take_while, take_while_m_n},
@@ -17,8 +18,24 @@ use nom::{
 pub fn parse_filters(input: &str) -> Result<(Vec<RawCardFilter>, Vec<CardFilter>), String> {
     parse_raw_filters(input).map_err(|e| format!("Error while parsing filters “{input}”: {e:?}")).and_then(|(rest, mut v)| {
         if rest.is_empty() {
-            v.sort_unstable_by_key(|RawCardFilter(f, _, _)| *f as u8);
-            Ok((v.clone(), v.into_iter().map(|r| build_filter(r)).collect::<Result<Vec<_>, _>>()?))
+            // Sorting must be stable or we can’t combine multiple name filters into one.
+            v.sort_by_key(|RawCardFilter(f, _, _)| *f as u8);
+            // Combine multiple names searches into one search filter. This makes the readable query nicer
+            // (“Showing 21 results where name is ally and name is of and name is justice” becomes
+            // “Showing 21 results where name is ‘ally of justice’”)
+            // and improves search performance by only performing one String::contains.
+            // This could be done without allocating two vectors, but coalesce is just so much nicer.
+            v = v
+                .into_iter()
+                .coalesce(|a, b| match (&a, &b) {
+                    (
+                        RawCardFilter(Field::Name, Operator::Equal, Value::String(s1)),
+                        RawCardFilter(Field::Name, Operator::Equal, Value::String(s2)),
+                    ) => Ok(RawCardFilter(Field::Name, Operator::Equal, Value::String(format!("{s1} {s2}")))),
+                    _ => Err((a, b)),
+                })
+                .collect();
+            Ok((v.clone(), v.clone().into_iter().map(|r| build_filter(r)).collect::<Result<Vec<_>, _>>()?))
         } else {
             Err(format!("Input was not fully parsed. Left over: “{rest}”"))
         }
