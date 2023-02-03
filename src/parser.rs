@@ -64,6 +64,7 @@ fn value(input: &str) -> IResult<&str, Value> {
 pub enum Field {
     Atk = 1,
     Def = 2,
+    Legal = 3,
     Level = 4,
     LinkRating = 6,
     Year = 8,
@@ -89,6 +90,7 @@ impl Display for Field {
             Self::LinkRating => "link rating",
             Self::Set => "set",
             Self::Year => "year",
+            Self::Legal => "allowed copies",
         })
     }
 }
@@ -108,6 +110,7 @@ impl FromStr for Field {
             "name" => Self::Name,
             "set" | "s" => Self::Set,
             "year" | "y" => Self::Year,
+            "legal" | "copies" => Self::Legal,
             _ => Err(s.to_string())?,
         })
     }

@@ -1,7 +1,7 @@
 use time::Date;
 
 use crate::{
-    data::Card,
+    data::{BanlistStatus, Card},
     parser::{Field, Operator, RawCardFilter, Value, OPERATOR_CHARS},
     SETS_BY_NAME,
 };
@@ -23,6 +23,7 @@ pub struct SearchCard {
     link_arrows:   Option<Vec<String>>,
     sets:          Vec<String>,
     original_year: Option<i32>,
+    legal_copies:  i32,
 }
 
 impl From<&Card> for SearchCard {
@@ -48,6 +49,7 @@ impl From<&Card> for SearchCard {
                 })
                 .map(Date::year)
                 .min(),
+            legal_copies:  card.banlist_info.map(|bi| bi.ban_tcg).unwrap_or(BanlistStatus::Unlimited) as i32,
         }
     }
 }
@@ -77,6 +79,7 @@ pub fn build_filter(query: RawCardFilter) -> Result<CardFilter, String> {
         RawCardFilter(Field::Level, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.level, n)),
         RawCardFilter(Field::LinkRating, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.link_rating, n)),
         RawCardFilter(Field::Year, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.original_year, n)),
+        RawCardFilter(Field::Legal, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(Some(card.legal_copies), n)),
         RawCardFilter(Field::Type, Operator::Equal, Value::String(s)) => Box::new(move |card| card.r#type == s),
         RawCardFilter(Field::Type, Operator::NotEqual, Value::String(s)) => Box::new(move |card| card.r#type != s),
         RawCardFilter(Field::Attribute, Operator::Equal, Value::String(s)) => Box::new(move |card| card.attribute.contains(&s)),

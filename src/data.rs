@@ -11,26 +11,43 @@ pub struct CardInfo {
 
 #[derive(Debug, Deserialize, PartialEq, Eq, Clone, Default)]
 pub struct Card {
-    pub id:          usize,
+    pub id:           usize,
     #[serde(rename = "type")]
-    pub card_type:   String,
-    pub name:        String,
+    pub card_type:    String,
+    pub name:         String,
     #[serde(rename = "desc")]
-    pub text:        String,
+    pub text:         String,
     // Will also be None for ?
-    pub atk:         Option<i32>,
-    pub def:         Option<i32>,
-    pub attribute:   Option<String>,
+    pub atk:          Option<i32>,
+    pub def:          Option<i32>,
+    pub attribute:    Option<String>,
     #[serde(rename = "race")]
-    pub r#type:      String,
+    pub r#type:       String,
     // also includes rank
-    pub level:       Option<i32>,
+    pub level:        Option<i32>,
     #[serde(rename = "linkval")]
-    pub link_rating: Option<i32>,
+    pub link_rating:  Option<i32>,
     #[serde(rename = "linkmarkers")]
-    pub link_arrows: Option<Vec<String>>,
+    pub link_arrows:  Option<Vec<String>>,
     #[serde(default)]
-    pub card_sets:   Vec<CardSet>,
+    pub card_sets:    Vec<CardSet>,
+    pub banlist_info: Option<BanlistInfo>,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Eq, Clone, Copy, Default)]
+pub struct BanlistInfo {
+    #[serde(default)]
+    pub ban_tcg: BanlistStatus,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Eq, Clone, Copy, Default)]
+pub enum BanlistStatus {
+    Banned = 0,
+    Limited = 1,
+    #[serde(rename = "Semi-Limited")]
+    SemiLimited = 2,
+    #[default]
+    Unlimited = 3,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq, Clone, Default)]

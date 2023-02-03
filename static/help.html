@@ -13,6 +13,7 @@ Currently supported search fields are:
   <li>The <code>attribute</code> (or <code>attr</code> or <code>a</code>) of a card. This is “Light”, “Dark”, “Earth”, etc.</li>
   <li>The <code>text</code> (or <code>effect</code>, <code>eff</code>, <code>e</code>, or <code>o</code>) of a card. This is either the effect or flavor text (for normal monsters). For pendulum cards, this searches in both pendulum and monster effects. The <code>o</code> alias is to help my muscle memory coming from Scryfall.</li>
   <li>The <code>set</code> (or <code>s</code>) a card was printed in. This considers all printings, not just the original.</li>
+  <li>The <code>copies</code> (or <code>legal</code>) you’re allowed to play according to the current banlist.</li>
 </ul>
 Anything not associated with a search field is interpreted as a search in the card name, so <a href="/?q=l%3A4+utopia"><code>l:4 utopia</code></a> will show all level/rank 4 monsters with “Utopia” in their name.<br/>
 If your search contains spaces (e.g. searching for an effect that says “destroy that target”), the text must be quoted like <code>effect:"destroy that target"</code>.
@@ -34,4 +35,5 @@ The following search operators are supported:
   <li>All Synchro monsters that are Dark attribute, level 5 or higher, and have exactly 2200 ATK: <a href="/?q=c%3Asynchro+a%3Adark+l%3E%3D5+atk%3A2200"><code>c:synchro a:dark l>=5 atk:2200</code></a></li>
   <li>All counter traps that can negate summons: <a href="/?q=c%3Atrap+t%3Acounter+e%3A%22negate+the+summon%22"><code>c:trap t:counter e:"negate the summon"</code></a></li>
   <li>All effect monsters printed in Legend of Blue-Eyes: <a href="/?q=set%3Alob+c%3Aeffect"><code>set:lob c:effect</code></a></li>
+  <li>All Zoodiac cards that are currently banned: <a href="/?q=legal%3A0+zoodiac"><code>legal:0 zoodiac</code></a></li>
 </ul>
