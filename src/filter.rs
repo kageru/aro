@@ -44,9 +44,7 @@ impl From<&Card> for SearchCard {
             original_year: card
                 .card_sets
                 .iter()
-                .filter_map(|s| {
-                    SETS_BY_NAME.get(&s.set_name.to_lowercase()).unwrap_or_else(|| panic!("Set {} not found", s.set_name)).tcg_date
-                })
+                .filter_map(|s| SETS_BY_NAME.get(&s.set_name.to_lowercase()).and_then(|s| s.tcg_date))
                 .map(Date::year)
                 .min(),
             legal_copies:  card.banlist_info.map(|bi| bi.ban_tcg).unwrap_or(BanlistStatus::Unlimited) as i32,
