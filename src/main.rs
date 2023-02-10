@@ -11,7 +11,9 @@ mod data;
 mod filter;
 mod parser;
 
-const RESULT_LIMIT: usize = 100;
+// The yearly tins have ~250 cards in them.
+// I want to be higher than that so the page is usable as a set list.
+const RESULT_LIMIT: usize = 300;
 
 static CARDS: LazyLock<Vec<Card>> = LazyLock::new(|| {
     let mut cards = serde_json::from_reader::<_, CardInfo>(BufReader::new(File::open("cards.json").expect("cards.json not found")))
