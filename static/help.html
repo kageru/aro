@@ -1,6 +1,7 @@
 <h1>Query Syntax</h1>
 The syntax is heavily inspired by <a href="https://scryfall.com/docs/syntax">Scryfall</a> with some changes and a lot fewer features.<br/>
-You can filter different characteristics of a card and combine multiple filters into one search. See below for examples.
+You can filter different characteristics of a card and combine multiple filters into one search. See below for examples.<br/>
+<br/>
 
 <h2>Search fields</h2>
 Currently supported search fields are:
@@ -12,13 +13,15 @@ Currently supported search fields are:
   <li>The <code>type</code> (or <code>t</code>) of a card (this is “Warrior”, “Pyro”, “Insect”, etc. for monsters, but also “quick-play”, “counter”, or “normal” for Spells/Traps).</li>
   <li>The <code>attribute</code> (or <code>attr</code> or <code>a</code>) of a card. This is “Light”, “Dark”, “Earth”, etc.</li>
   <li>The <code>text</code> (or <code>effect</code>, <code>eff</code>, <code>e</code>, or <code>o</code>) of a card. This is either the effect or flavor text (for normal monsters). For pendulum cards, this searches in both pendulum and monster effects. The <code>o</code> alias is to help my muscle memory coming from Scryfall.</li>
-  <li>The <code>set</code> (or <code>s</code>) a card was printed in. This considers all printings, not just the original.</li>
+  <li>The <code>set</code> (or <code>s</code>) a card was printed in. This considers all printings, not just the original, and uses the set code (e.g. <code>ioc</code> for Invasion of Chaos or <code>pote</code> for Power of the Elements).</li>
   <li>The <code>copies</code> (or <code>legal</code>) you’re allowed to play according to the current banlist.</li>
 </ul>
 Anything not associated with a search field is interpreted as a search in the card name, so <a href="/?q=l%3A4+utopia"><code>l:4 utopia</code></a> will show all level/rank 4 monsters with “Utopia” in their name.<br/>
 If your search contains spaces (e.g. searching for an effect that says “destroy that target”), the text must be quoted like <code>effect:"destroy that target"</code>.
 <br/><br/>
 Note that all fields are case-insensitive, so <code>class:NORMAL</code> is the same as <code>class:Normal</code> or <code>class:normal</code>.
+<br/>
+<br/>
 
 <h2>Search operators</h2>
 The following search operators are supported:

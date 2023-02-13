@@ -11,6 +11,8 @@ mod data;
 mod filter;
 mod parser;
 
+type AnyResult<T> = Result<T, Box<dyn std::error::Error>>;
+
 // The yearly tins have ~250 cards in them.
 // I want to be higher than that so the page is usable as a set list.
 const RESULT_LIMIT: usize = 300;
@@ -55,6 +57,13 @@ struct Query {
     q: String,
 }
 
+#[derive(Debug)]
+struct PageData {
+    title: String,
+    query: Option<String>,
+    body:  String,
+}
+
 const HEADER: &str = include_str!("../static/header.html");
 const HELP_CONTENT: &str = include_str!("../static/help.html");
 const FOOTER: &str = r#"<div id="bottom">
@@ -65,7 +74,7 @@ const FOOTER: &str = r#"<div id="bottom">
 </body></html>"#;
 
 #[get("/")]
-async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> Result<HttpResponse, Box<dyn std::error::Error>> {
+async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> AnyResult<HttpResponse> {
     let q = match q {
         Some(Either::Left(web::Query(Query { q }))) => Some(q),
         Some(Either::Right(web::Form(Query { q }))) => Some(q),
@@ -73,54 +82,43 @@ async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> Resul
     }
     .filter(|s| !s.is_empty());
     let mut res = String::with_capacity(10_000);
-    res.push_str(HEADER);
-    render_searchbox(&mut res, &q)?;
-    match q {
-        Some(q) => render_results(&mut res, &q)?,
-        None => res.push_str("Enter a query above to search"),
-    }
-    finish_document(&mut res);
+    let data = match q {
+        Some(q) => compute_results(q)?,
+        None => PageData { title: "YGO card search".to_owned(), query: None, body: "Enter a query above to search".to_owned() },
+    };
+    add_data(&mut res, &data)?;
     Ok(HttpResponse::Ok().insert_header(header::ContentType::html()).body(res))
 }
 
 #[get("/card/{id}")]
-async fn card_info(card_id: web::Path<usize>) -> Result<HttpResponse, Box<dyn std::error::Error>> {
+async fn card_info(card_id: web::Path<usize>) -> AnyResult<HttpResponse> {
     let mut res = String::with_capacity(2_000);
-    res.push_str(HEADER);
-    render_searchbox(&mut res, &None)?;
-    match CARDS_BY_ID.get(&card_id) {
-        Some(card) => {
-            res.push_str(r#""#);
-            write!(
-                res,
-                r#"
-<div>
-    <img class="fullimage" src="{}/static/full/{}.jpg"/>
-    {card}
-    {}
-</div>"#,
+    let data = match CARDS_BY_ID.get(&card_id) {
+        Some(card) => PageData {
+            title: format!("{} - YGO Card Database", card.name),
+            query: None,
+            body:  format!(
+                r#"<div><img class="fullimage" src="{}/static/full/{}.jpg"/>{card}{}</div>"#,
                 IMG_HOST.as_str(),
                 card.id,
                 card.extended_info().unwrap_or_else(|_| String::new()),
-            )?;
-        }
-        None => res.push_str("Card not found"),
-    }
-    finish_document(&mut res);
+            ),
+        },
+        None => PageData { title: "Card not found - YGO Card Database".to_owned(), query: None, body: "Card not found".to_owned() },
+    };
+    add_data(&mut res, &data)?;
     Ok(HttpResponse::Ok().insert_header(header::ContentType::html()).body(res))
 }
 
 #[get("/help")]
-async fn help() -> Result<HttpResponse, Box<dyn std::error::Error>> {
+async fn help() -> AnyResult<HttpResponse> {
     let mut res = String::with_capacity(HEADER.len() + HELP_CONTENT.len() + FOOTER.len() + 250);
-    res.push_str(HEADER);
-    render_searchbox(&mut res, &None)?;
-    res.push_str(HELP_CONTENT);
-    res.push_str(FOOTER);
+    let data = PageData { query: None, title: "Query Syntax - YGO Card Database".to_owned(), body: HELP_CONTENT.to_owned() };
+    add_data(&mut res, &data)?;
     Ok(HttpResponse::Ok().insert_header(header::ContentType::html()).body(res))
 }
 
-fn render_searchbox(res: &mut String, query: &Option<String>) -> std::fmt::Result {
+fn add_searchbox(res: &mut String, query: &Option<String>) -> std::fmt::Result {
     write!(
         res,
         r#"
@@ -134,12 +132,13 @@ fn render_searchbox(res: &mut String, query: &Option<String>) -> std::fmt::Resul
     )
 }
 
-fn render_results(res: &mut String, query: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let (raw_filters, query) = match parser::parse_filters(query) {
+fn compute_results(raw_query: String) -> AnyResult<PageData> {
+    let mut body = String::with_capacity(10_000);
+    let (raw_filters, query) = match parser::parse_filters(&raw_query) {
         Ok(q) => q,
         Err(e) => {
-            write!(res, "Could not parse query: {e:?}")?;
-            return Ok(());
+            let s = format!("Could not parse query: {e:?}");
+            return Ok(PageData { title: s.clone(), query: Some(raw_query), body: s });
         }
     };
     let now = Instant::now();
@@ -149,30 +148,29 @@ fn render_results(res: &mut String, query: &str) -> Result<(), Box<dyn std::erro
         .map(|c| CARDS_BY_ID.get(&c.id).unwrap())
         .take(RESULT_LIMIT)
         .collect();
-    write!(
-        res,
-        "<span class=\"meta\">Showing {} results where {} (took {:?})</span>",
-        matches.len(),
-        raw_filters.iter().map(|f| f.to_string()).join(" and "),
-        now.elapsed()
-    )?;
+    let readable_query = format!("Showing {} results where {}", matches.len(), raw_filters.iter().map(|f| f.to_string()).join(" and "),);
+    write!(body, "<span class=\"meta\">{readable_query} (took {:?})</span>", now.elapsed())?;
     if matches.is_empty() {
-        return Ok(());
+        return Ok(PageData { title: readable_query.clone(), query: Some(raw_query), body });
     }
-    res.push_str("<div style=\"display: flex; flex-wrap: wrap;\">");
+    body.push_str("<div style=\"display: flex; flex-wrap: wrap;\">");
     for card in matches {
         write!(
-            res,
+            body,
             r#"<a class="cardresult" href="/card/{}"><img src="{}/static/thumb/{}.jpg" class="thumb"/>{card}</a>"#,
             card.id,
             IMG_HOST.as_str(),
             card.id
         )?;
     }
-    res.push_str("</div>");
-    Ok(())
+    body.push_str("</div>");
+    Ok(PageData { title: readable_query.clone(), query: Some(raw_query), body })
 }
 
-fn finish_document(res: &mut String) {
-    res.push_str(FOOTER)
+fn add_data(res: &mut String, pd: &PageData) -> AnyResult<()> {
+    res.push_str(&HEADER.replacen("{TITLE}", &pd.title, 1).replacen("{IMG_HOST}", &IMG_HOST, 1));
+    add_searchbox(res, &pd.query)?;
+    res.push_str(&pd.body);
+    res.push_str(FOOTER);
+    Ok(())
 }
