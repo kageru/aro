@@ -70,11 +70,47 @@ impl Card {
         for printing in &self.card_sets {
             write!(s, "{}: {} ({})", printing.set_name, printing.set_code, printing.set_rarity)?;
             if let Some(date) = SETS_BY_NAME.get(&printing.set_name.to_lowercase()).and_then(|s| s.tcg_date) {
-                write!(s, " - {}", date)?;
+                write!(s, " - {date}")?;
             }
             s.push_str("<br/>");
         }
         Ok(s)
+    }
+
+    pub fn short_info(&self) -> Result<String, fmt::Error> {
+        let mut s = String::new();
+        s.push_str(&self.name);
+        s.push('\n');
+        self.basic_info(&mut s, "\n")?;
+        Ok(s)
+    }
+
+    fn basic_info<W: Write>(&self, f: &mut W, newline: &str) -> fmt::Result {
+        if let Some(level) = self.level {
+            if self.card_type.contains("XYZ") {
+                f.write_str("Rank ")?;
+            } else {
+                f.write_str("Level ")?;
+            }
+            write!(f, "{level} ")?;
+        } else if let Some(lr) = self.link_rating {
+            write!(f, "Link {lr} ")?;
+        }
+        if let Some(attr) = &self.attribute {
+            write!(f, "{attr}/")?;
+        }
+        write!(f, "{} {}", self.r#type, self.card_type)?;
+        if self.card_type.contains(&String::from("Monster")) {
+            f.write_str(newline)?;
+            match (self.atk, self.def) {
+                (Some(atk), Some(def)) => write!(f, "{atk} ATK / {def} DEF")?,
+                (Some(atk), None) if self.link_rating.is_some() => write!(f, "{atk} ATK")?,
+                (None, Some(def)) => write!(f, "? ATK / {def} DEF")?,
+                (Some(atk), None) => write!(f, "{atk} ATK / ? DEF")?,
+                (None, None) => write!(f, "? ATK / ? DEF")?,
+            }
+        }
+        Ok(())
     }
 }
 
@@ -92,30 +128,7 @@ impl Display for Card {
                 _ => String::new(),
             }
         )?;
-        if let Some(level) = self.level {
-            if self.card_type.contains("XYZ") {
-                f.write_str("Rank ")?;
-            } else {
-                f.write_str("Level ")?;
-            }
-            write!(f, "{level} ")?;
-        } else if let Some(lr) = self.link_rating {
-            write!(f, "Link {lr} ")?;
-        }
-        if let Some(attr) = &self.attribute {
-            write!(f, "{attr}/")?;
-        }
-        write!(f, "{} {}", self.r#type, self.card_type)?;
-        if self.card_type.contains(&String::from("Monster")) {
-            f.write_str("<br/>")?;
-            match (self.atk, self.def) {
-                (Some(atk), Some(def)) => write!(f, "{atk} ATK / {def} DEF")?,
-                (Some(atk), None) if self.link_rating.is_some() => write!(f, "{atk} ATK")?,
-                (None, Some(def)) => write!(f, "? ATK / {def} DEF")?,
-                (Some(atk), None) => write!(f, "{atk} ATK / ? DEF")?,
-                (None, None) => write!(f, "? ATK / ? DEF")?,
-            }
-        }
+        self.basic_info(f, "<br/>")?;
         write!(f, "</em><p>{}</p>", &self.text)?;
         Ok(())
     }

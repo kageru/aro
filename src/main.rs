@@ -59,9 +59,10 @@ struct Query {
 
 #[derive(Debug)]
 struct PageData {
-    title: String,
-    query: Option<String>,
-    body:  String,
+    description: String,
+    title:       String,
+    query:       Option<String>,
+    body:        String,
 }
 
 const HEADER: &str = include_str!("../static/header.html");
@@ -84,7 +85,12 @@ async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> AnyRe
     let mut res = String::with_capacity(10_000);
     let data = match q {
         Some(q) => compute_results(q)?,
-        None => PageData { title: "YGO card search".to_owned(), query: None, body: "Enter a query above to search".to_owned() },
+        None => PageData {
+            title:       "YGO card search".to_owned(),
+            description: "Enter a query above to search".to_owned(),
+            query:       None,
+            body:        "Enter a query above to search".to_owned(),
+        },
     };
     add_data(&mut res, &data)?;
     Ok(HttpResponse::Ok().insert_header(header::ContentType::html()).body(res))
@@ -95,16 +101,23 @@ async fn card_info(card_id: web::Path<usize>) -> AnyResult<HttpResponse> {
     let mut res = String::with_capacity(2_000);
     let data = match CARDS_BY_ID.get(&card_id) {
         Some(card) => PageData {
-            title: format!("{} - YGO Card Database", card.name),
-            query: None,
-            body:  format!(
-                r#"<div><img class="fullimage" src="{}/static/full/{}.jpg"/>{card}{}</div>"#,
+            title:       format!("{} - YGO Card Database", card.name),
+            description: card.short_info()?,
+            query:       None,
+            body:        format!(
+                r#"<div> <img alt="Card Image: {}" class="fullimage" src="{}/static/full/{}.jpg"/>{card} {} </div>"#,
+                card.name,
                 IMG_HOST.as_str(),
                 card.id,
                 card.extended_info().unwrap_or_else(|_| String::new()),
             ),
         },
-        None => PageData { title: "Card not found - YGO Card Database".to_owned(), query: None, body: "Card not found".to_owned() },
+        None => PageData {
+            description: "Card not found - YGO Card Database".to_owned(),
+            title:       "Card not found - YGO Card Database".to_owned(),
+            query:       None,
+            body:        "Card not found".to_owned(),
+        },
     };
     add_data(&mut res, &data)?;
     Ok(HttpResponse::Ok().insert_header(header::ContentType::html()).body(res))
@@ -113,7 +126,12 @@ async fn card_info(card_id: web::Path<usize>) -> AnyResult<HttpResponse> {
 #[get("/help")]
 async fn help() -> AnyResult<HttpResponse> {
     let mut res = String::with_capacity(HEADER.len() + HELP_CONTENT.len() + FOOTER.len() + 250);
-    let data = PageData { query: None, title: "Query Syntax - YGO Card Database".to_owned(), body: HELP_CONTENT.to_owned() };
+    let data = PageData {
+        query:       None,
+        title:       "Query Syntax - YGO Card Database".to_owned(),
+        body:        HELP_CONTENT.to_owned(),
+        description: String::new(),
+    };
     add_data(&mut res, &data)?;
     Ok(HttpResponse::Ok().insert_header(header::ContentType::html()).body(res))
 }
@@ -124,7 +142,8 @@ fn add_searchbox(res: &mut String, query: &Option<String>) -> std::fmt::Result {
         r#"
 <form action="/">
   <input type="text" name="q" id="searchbox" placeholder="Enter query (e.g. l:5 c:synchro atk>2000)" value="{}"><input type="submit" id="submit" value="🔍">
-</form>"#,
+</form>
+"#,
         match &query {
             Some(q) => q.replace('"', "&quot;"),
             None => String::new(),
@@ -138,7 +157,12 @@ fn compute_results(raw_query: String) -> AnyResult<PageData> {
         Ok(q) => q,
         Err(e) => {
             let s = format!("Could not parse query: {e:?}");
-            return Ok(PageData { title: s.clone(), query: Some(raw_query), body: s });
+            return Ok(PageData {
+                description: s.clone(),
+                query:       Some(raw_query),
+                body:        s,
+                title:       "YGO Card Database".to_owned(),
+            });
         }
     };
     let now = Instant::now();
@@ -151,24 +175,37 @@ fn compute_results(raw_query: String) -> AnyResult<PageData> {
     let readable_query = format!("Showing {} results where {}", matches.len(), raw_filters.iter().map(|f| f.to_string()).join(" and "),);
     write!(body, "<span class=\"meta\">{readable_query} (took {:?})</span>", now.elapsed())?;
     if matches.is_empty() {
-        return Ok(PageData { title: readable_query.clone(), query: Some(raw_query), body });
+        return Ok(PageData {
+            description: readable_query,
+            query: Some(raw_query),
+            body,
+            title: "No results - YGO Card Database".to_owned(),
+        });
     }
     body.push_str("<div style=\"display: flex; flex-wrap: wrap;\">");
-    for card in matches {
+    for card in &matches {
         write!(
             body,
-            r#"<a class="cardresult" href="/card/{}"><img src="{}/static/thumb/{}.jpg" class="thumb"/>{card}</a>"#,
+            r#"<a class="cardresult" href="/card/{}"><img alt="Card Image: {}" src="{}/static/thumb/{}.jpg" class="thumb"/>{card}</a>"#,
             card.id,
+            card.name,
             IMG_HOST.as_str(),
             card.id
         )?;
     }
     body.push_str("</div>");
-    Ok(PageData { title: readable_query.clone(), query: Some(raw_query), body })
+    Ok(PageData {
+        description: readable_query,
+        query: Some(raw_query),
+        body,
+        title: format!("{} results - YGO Card Database", matches.len()),
+    })
 }
 
 fn add_data(res: &mut String, pd: &PageData) -> AnyResult<()> {
-    res.push_str(&HEADER.replacen("{TITLE}", &pd.title, 1).replacen("{IMG_HOST}", &IMG_HOST, 1));
+    res.push_str(
+        &HEADER.replacen("{DESCRIPTION}", &pd.description, 2).replacen("{IMG_HOST}", &IMG_HOST, 1).replacen("{TITLE}", &pd.title, 2),
+    );
     add_searchbox(res, &pd.query)?;
     res.push_str(&pd.body);
     res.push_str(FOOTER);
