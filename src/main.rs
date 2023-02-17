@@ -3,6 +3,7 @@ use actix_web::{get, http::header, web, App, Either, HttpResponse, HttpServer};
 use data::{Card, CardInfo, Set};
 use filter::SearchCard;
 use itertools::Itertools;
+use regex::{Captures, Regex};
 use serde::Deserialize;
 use std::{collections::HashMap, fmt::Write, fs::File, io::BufReader, net::Ipv4Addr, sync::LazyLock, time::Instant};
 use time::Date;
@@ -26,8 +27,19 @@ static CARDS: LazyLock<Vec<Card>> = LazyLock::new(|| {
     });
     cards
 });
-static CARDS_BY_ID: LazyLock<HashMap<usize, Card>> =
-    LazyLock::new(|| CARDS.iter().map(|c| (c.id, Card { text: c.text.replace('\r', "").replace('\n', "<br/>"), ..c.clone() })).collect());
+static CARDS_BY_ID: LazyLock<HashMap<usize, Card>> = LazyLock::new(|| {
+    CARDS
+        .iter()
+        .map(|c| {
+            let text = PENDULUM_SEPARATOR
+                .replacen(&c.text.replace('\r', ""), 1, |caps: &Captures| {
+                    format!("</p><hr/>[ {} ]<p>", caps.iter().flatten().last().map_or_else(|| "Monster Effect", |g| g.as_str()))
+                })
+                .replace('\n', "<br/>");
+            (c.id, Card { text, ..c.clone() })
+        })
+        .collect()
+});
 static SEARCH_CARDS: LazyLock<Vec<SearchCard>> = LazyLock::new(|| CARDS.iter().map(SearchCard::from).collect());
 static SETS_BY_NAME: LazyLock<HashMap<String, Set>> = LazyLock::new(|| {
     serde_json::from_reader::<_, Vec<Set>>(BufReader::new(File::open("sets.json").expect("sets.json not found")))
@@ -36,6 +48,8 @@ static SETS_BY_NAME: LazyLock<HashMap<String, Set>> = LazyLock::new(|| {
         .map(|s| (s.set_name.to_lowercase(), s))
         .collect()
 });
+static PENDULUM_SEPARATOR: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new("(\\n-+)?\\n\\[\\s?(Monster Effect|Flavor Text)\\s?\\]\\n?").unwrap());
 
 static IMG_HOST: LazyLock<String> = LazyLock::new(|| std::env::var("IMG_HOST").unwrap_or_else(|_| String::new()));
 
@@ -105,7 +119,7 @@ async fn card_info(card_id: web::Path<usize>) -> AnyResult<HttpResponse> {
             description: card.short_info()?,
             query:       None,
             body:        format!(
-                r#"<div> <img alt="Card Image: {}" class="fullimage" src="{}/static/full/{}.jpg"/>{card} {} </div>"#,
+                r#"<div> <img alt="Card Image: {}" class="fullimage" src="{}/static/full/{}.jpg"/>{card} <hr/> {} </div>"#,
                 card.name,
                 IMG_HOST.as_str(),
                 card.id,

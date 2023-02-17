@@ -35,6 +35,8 @@ code {
 
 p {
   text-align: justify;
+  margin-block-start: 0.2em;
+  margin-block-end: 0.2em;
 }
 
 form > * {
@@ -59,10 +61,6 @@ form > *:focus {
 
 a {
   color: var(--hl);
-}
-
-hr {
-  border-color: var(--hl);
 }
 
 h2 {

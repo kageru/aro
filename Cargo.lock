@@ -206,6 +206,7 @@ dependencies = [
  "actix-web",
  "itertools",
  "nom",
+ "regex",
  "serde",
  "serde_json",
  "test-case",
