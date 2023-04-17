@@ -2,7 +2,7 @@ use time::Date;
 
 use crate::{
     data::{BanlistStatus, Card},
-    parser::{Field, Operator, RawCardFilter, Value, OPERATOR_CHARS},
+    parser::{Field, Operator, RawCardFilter, Value},
     SETS_BY_NAME,
 };
 
@@ -54,42 +54,47 @@ impl From<&Card> for SearchCard {
 
 pub type CardFilter = Box<dyn Fn(&SearchCard) -> bool>;
 
-pub fn fallback_filter(query: &str) -> Result<RawCardFilter, String> {
-    if query.contains(OPERATOR_CHARS) {
-        return Err(format!("Invalid query: {query}"));
+fn get_field_value(card: &SearchCard, field: Field) -> Value {
+    match field {
+        Field::Atk => Value::Numerical(card.atk.unwrap_or(0)),
+        Field::Def => Value::Numerical(card.def.unwrap_or(0)),
+        Field::Legal => Value::Numerical(card.legal_copies),
+        Field::Level => Value::Numerical(card.level.unwrap_or(0)),
+        Field::LinkRating => Value::Numerical(card.link_rating.unwrap_or(0)),
+        Field::Year => Value::Numerical(card.original_year.unwrap_or(0)),
+        // Search in any of the sets. This can lead to false positives if Konami ever decides to print LOB2 because `set:LOB` would also match that.
+        // On the bright side, this means `set:HA` matches all Hidden Arsenals (plus reprints in HAC), but also all other set codes that contain HA.
+        Field::Set => Value::String(card.sets.join(" ")),
+        Field::Type => Value::String(card.r#type.clone()),
+        Field::Attribute => Value::String(card.attribute.clone().unwrap_or_else(|| "".to_string())),
+        Field::Class => Value::String(card.card_type.clone()),
+        Field::Name => Value::String(card.name.clone()),
+        Field::Text => Value::String(card.text.clone()),
     }
-    let q = query.to_lowercase();
-    Ok(RawCardFilter(Field::Name, Operator::Equal, Value::String(q)))
 }
 
-pub fn build_filter(query: RawCardFilter) -> Result<CardFilter, String> {
-    Ok(match query {
-        RawCardFilter(Field::Atk, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.atk, n)),
-        RawCardFilter(Field::Def, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.def, n)),
-        // ? ATK/DEF is modeled as None in the source json. At least for some monsters.
-        // Let’s at least find those.
-        RawCardFilter(Field::Atk, _, Value::String(s)) if s == "?" => {
-            Box::new(move |card| card.atk.is_none() && card.card_type.contains("monster"))
-        }
-        RawCardFilter(Field::Def, _, Value::String(s)) if s == "?" => {
-            Box::new(move |card| card.def.is_none() && card.link_rating.is_none() && card.card_type.contains("monster"))
-        }
-        RawCardFilter(Field::Level, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.level, n)),
-        RawCardFilter(Field::LinkRating, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.link_rating, n)),
-        RawCardFilter(Field::Year, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(card.original_year, n)),
-        RawCardFilter(Field::Legal, op, Value::Numerical(n)) => Box::new(move |card| op.filter_number(Some(card.legal_copies), n)),
-        RawCardFilter(Field::Type, Operator::Equal, Value::String(s)) => Box::new(move |card| card.r#type == s),
-        RawCardFilter(Field::Type, Operator::NotEqual, Value::String(s)) => Box::new(move |card| card.r#type != s),
-        RawCardFilter(Field::Attribute, Operator::Equal, Value::String(s)) => Box::new(move |card| card.attribute.contains(&s)),
-        RawCardFilter(Field::Attribute, Operator::NotEqual, Value::String(s)) => Box::new(move |card| !card.attribute.contains(&s)),
-        RawCardFilter(Field::Class, Operator::Equal, Value::String(s)) => Box::new(move |card| card.card_type.contains(&s)),
-        RawCardFilter(Field::Class, Operator::NotEqual, Value::String(s)) => Box::new(move |card| !card.card_type.contains(&s)),
-        RawCardFilter(Field::Text, Operator::Equal, Value::String(s)) => Box::new(move |card| card.text.contains(&s)),
-        RawCardFilter(Field::Text, Operator::NotEqual, Value::String(s)) => Box::new(move |card| !card.text.contains(&s)),
-        RawCardFilter(Field::Name, Operator::Equal, Value::String(s)) => Box::new(move |card| card.name.contains(&s)),
-        RawCardFilter(Field::Name, Operator::NotEqual, Value::String(s)) => Box::new(move |card| !card.name.contains(&s)),
-        RawCardFilter(Field::Set, Operator::Equal, Value::String(s)) => Box::new(move |card| card.sets.contains(&s)),
-        q => Err(format!("unknown query: {q:?}"))?,
+fn filter_value(op: &Operator, field_value: &Value, query_value: &Value) -> bool {
+    match (field_value, query_value) {
+        (Value::Numerical(field), Value::Numerical(query)) => op.filter_number(Some(*field), *query),
+        (Value::String(field), Value::String(query)) => match op {
+            Operator::Equal => field.contains(query),
+            Operator::NotEqual => !field.contains(query),
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+pub fn build_filter(RawCardFilter(field, op, value): RawCardFilter) -> Result<CardFilter, String> {
+    Ok(match value {
+        Value::Multiple(values) => Box::new(move |card: &SearchCard| {
+            let field_value = get_field_value(card, field);
+            values.iter().any(|query_value| filter_value(&op, &field_value, query_value))
+        }),
+        single_value => Box::new(move |card: &SearchCard| {
+            let field_value = get_field_value(card, field);
+            filter_value(&op, &field_value, &single_value)
+        }),
     })
 }
 

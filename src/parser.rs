@@ -3,14 +3,14 @@ use std::{
     str::FromStr,
 };
 
-use crate::filter::{build_filter, fallback_filter, CardFilter};
+use crate::filter::{build_filter, CardFilter};
 use itertools::Itertools;
 use nom::{
     branch::alt,
     bytes::complete::{take_until1, take_while, take_while_m_n},
     character::complete::{char, multispace0},
-    combinator::{complete, map, map_res, rest, verify},
-    multi::many_m_n,
+    combinator::{complete, map, map_res, recognize, rest, verify},
+    multi::{many_m_n, separated_list1},
     sequence::{delimited, preceded, tuple},
     IResult,
 };
@@ -50,10 +50,26 @@ fn word_non_empty(input: &str) -> IResult<&str, &str> {
     verify(alt((take_until1(" "), rest)), |s: &str| s.len() >= 2)(input)
 }
 
+fn sanitize(query: &str) -> Result<String, String> {
+    if query.contains(OPERATOR_CHARS) {
+        Err(format!("Invalid query: {query}"))
+    } else {
+        Ok(query.to_lowercase())
+    }
+}
+
+fn fallback_filter(query: &str) -> Result<RawCardFilter, String> {
+    let q = sanitize(query)?;
+    Ok(RawCardFilter(Field::Name, Operator::Equal, Value::String(q)))
+}
+
 fn parse_raw_filter(input: &str) -> IResult<&str, RawCardFilter> {
     preceded(
         multispace0,
-        alt((map(complete(tuple((field, operator, value))), |(f, o, v)| RawCardFilter(f, o, v)), map_res(word_non_empty, fallback_filter))),
+        alt((
+            map(complete(tuple((field, operator, values))), |(f, o, v)| RawCardFilter(f, o, v)),
+            map_res(word_non_empty, fallback_filter),
+        )),
     )(input)
 }
 
@@ -67,12 +83,36 @@ fn operator(input: &str) -> IResult<&str, Operator> {
     map_res(take_while_m_n(1, 2, |c| OPERATOR_CHARS.contains(&c)), str::parse)(input)
 }
 
-fn value(input: &str) -> IResult<&str, Value> {
-    map_res(alt((delimited(char('"'), take_until1("\""), char('"')), take_until1(" "), rest)), |i: &str| match i.parse() {
-        Ok(n) => Ok(Value::Numerical(n)),
-        Err(_) if i.is_empty() => Err("empty filter argument"),
-        Err(_) => Ok(Value::String(i.to_lowercase())),
-    })(input)
+fn values(input: &str) -> IResult<&str, Value> {
+    map_res(
+        alt((
+            delimited(char('"'), take_until1("\""), char('"')),
+            recognize(separated_list1(char('|'), take_until1(" |"))),
+            take_until1(" "),
+            rest,
+        )),
+        |i: &str| {
+            if i.contains('|') {
+                let items: Vec<_> = i.split('|').collect();
+                let mut values = Vec::new();
+
+                for item in items {
+                    match item.parse::<i32>() {
+                        Ok(n) => values.push(Value::Numerical(n)),
+                        Err(_) => values.push(Value::String(sanitize(item)?)),
+                    }
+                }
+
+                Ok(Value::Multiple(values))
+            } else {
+                match i.parse() {
+                    Ok(n) => Ok(Value::Numerical(n)),
+                    Err(_) if i.is_empty() => Err("empty filter argument".to_string()),
+                    Err(_) => Ok(Value::String(sanitize(i)?)),
+                }
+            }
+        },
+    )(input)
 }
 
 /// Ordinals are given highest = fastest to filter.
@@ -201,6 +241,7 @@ impl Display for RawCardFilter {
 pub enum Value {
     String(String),
     Numerical(i32),
+    Multiple(Vec<Value>),
 }
 
 impl Display for Value {
@@ -214,6 +255,12 @@ impl Display for Value {
                 }
             }
             Self::Numerical(n) => write!(f, "{n}"),
+            Self::Multiple(m) => {
+                for v in m {
+                    write!(f, "{v} or ")?
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -241,7 +288,9 @@ mod tests {
     #[test_case("=100")]
     #[test_case("a")]
     fn unsuccessful_parsing_test(input: &str) {
-        assert!(parse_filters(input).is_err());
+        if let Ok((filters, _)) = parse_filters(input) {
+            assert!(false, "Should have failed, but parsed as {filters:?}");
+        }
     }
 
     #[test]
@@ -272,6 +321,17 @@ mod tests {
                 ]
             ))
         );
+    }
+
+    #[test]
+    fn test_parse_raw_filters_with_multiple_values() {
+        let input = "level=4|5|6";
+        let expected_output = vec![RawCardFilter(
+            Field::Level,
+            Operator::Equal,
+            Value::Multiple(vec![Value::Numerical(4), Value::Numerical(5), Value::Numerical(6)]),
+        )];
+        assert_eq!(parse_raw_filters(input), Ok(("", expected_output)));
     }
 
     #[test]
