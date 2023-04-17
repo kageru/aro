@@ -251,10 +251,7 @@ impl Display for Value {
             }
             Self::Numerical(n) => write!(f, "{n}"),
             Self::Multiple(m) => {
-                for v in m {
-                    write!(f, "{v} or ")?
-                }
-                Ok(())
+                write!(f, "one of [{}]", m.iter().map(Value::to_string).join(", "))
             }
         }
     }

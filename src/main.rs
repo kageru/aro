@@ -167,7 +167,7 @@ fn add_searchbox(res: &mut String, query: &Option<String>) -> std::fmt::Result {
 
 fn compute_results(raw_query: String) -> AnyResult<PageData> {
     let mut body = String::with_capacity(10_000);
-    let (raw_filters, query) = match parser::parse_filters(&raw_query.trim()) {
+    let (raw_filters, query) = match parser::parse_filters(raw_query.trim()) {
         Ok(q) => q,
         Err(e) => {
             let s = format!("Could not parse query: {e:?}");
