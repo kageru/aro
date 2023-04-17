@@ -51,7 +51,7 @@ fn word_non_empty(input: &str) -> IResult<&str, &str> {
 }
 
 fn sanitize(query: &str) -> Result<String, String> {
-    if query.contains(OPERATOR_CHARS) {
+    if query.contains(OPERATOR_CHARS) || query.is_empty() {
         Err(format!("Invalid query: {query}"))
     } else {
         Ok(query.to_lowercase())
@@ -91,28 +91,23 @@ fn values(input: &str) -> IResult<&str, Value> {
             take_until1(" "),
             rest,
         )),
-        |i: &str| {
-            if i.contains('|') {
-                let items: Vec<_> = i.split('|').collect();
-                let mut values = Vec::new();
-
-                for item in items {
-                    match item.parse::<i32>() {
-                        Ok(n) => values.push(Value::Numerical(n)),
-                        Err(_) => values.push(Value::String(sanitize(item)?)),
-                    }
-                }
-
-                Ok(Value::Multiple(values))
-            } else {
-                match i.parse() {
-                    Ok(n) => Ok(Value::Numerical(n)),
-                    Err(_) if i.is_empty() => Err("empty filter argument".to_string()),
-                    Err(_) => Ok(Value::String(sanitize(i)?)),
-                }
-            }
-        },
+        parse_values,
     )(input)
+}
+
+fn parse_values(input: &str) -> Result<Value, String> {
+    let values = input.split('|').map(parse_single_value).collect::<Result<Vec<Value>, String>>()?;
+    Ok(match values.as_slice() {
+        [v] => v.clone(),
+        _ => Value::Multiple(values),
+    })
+}
+
+fn parse_single_value(input: &str) -> Result<Value, String> {
+    Ok(match input.parse() {
+        Ok(n) => Value::Numerical(n),
+        Err(_) => Value::String(sanitize(input)?),
+    })
 }
 
 /// Ordinals are given highest = fastest to filter.
@@ -283,6 +278,8 @@ mod tests {
     }
 
     #[test_case("atk<=>1")]
+    #[test_case("atk=50|")]
+    #[test_case("def=|")]
     #[test_case("l===10")]
     #[test_case("t=")]
     #[test_case("=100")]
@@ -324,7 +321,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_raw_filters_with_multiple_values() {
+    fn parse_multiple_values() {
         let input = "level=4|5|6";
         let expected_output = vec![RawCardFilter(
             Field::Level,

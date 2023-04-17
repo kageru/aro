@@ -66,7 +66,7 @@ fn get_field_value(card: &SearchCard, field: Field) -> Value {
         // On the bright side, this means `set:HA` matches all Hidden Arsenals (plus reprints in HAC), but also all other set codes that contain HA.
         Field::Set => Value::String(card.sets.join(" ")),
         Field::Type => Value::String(card.r#type.clone()),
-        Field::Attribute => Value::String(card.attribute.clone().unwrap_or_else(|| "".to_string())),
+        Field::Attribute => Value::String(card.attribute.clone().unwrap_or_default()),
         Field::Class => Value::String(card.card_type.clone()),
         Field::Name => Value::String(card.name.clone()),
         Field::Text => Value::String(card.text.clone()),
@@ -106,8 +106,15 @@ mod tests {
     #[test]
     fn level_filter_test() {
         let lacooda = SearchCard::from(&serde_json::from_str::<Card>(RAW_MONSTER).unwrap());
+        let lacooda_but_level_4 = SearchCard { level: Some(4), ..lacooda.clone() };
+
         let filter_level_3 = parse_filters("l=3").unwrap();
         assert!(filter_level_3.1[0](&lacooda));
+
+        let filter_level_3_4 = parse_filters("l=3|4").unwrap();
+        assert!(filter_level_3_4.1[0](&lacooda));
+        assert!(filter_level_3_4.1[0](&lacooda_but_level_4));
+
         let filter_level_5 = parse_filters("l=5").unwrap();
         assert!(!filter_level_5.1[0](&lacooda));
     }
