@@ -30,6 +30,8 @@ The following search operators are supported:
   <li>Inequality (<code>!=</code>) checks if the value is not equal to your search. For text fields, this return cards that do not contain the word you searched.</li>
   <li>Comparisons (<code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code>) check if the value is less than, greater than, less than or equal, and greater than or equal to your search. <a href="/?q=atk%3E%3D4000"><code>atk&gt;=4000</code></a> will show all cards with an ATK of at least 4000. These operators do not work for text fields.</li>
 </ul>
+<br/>
+It is possible to filter for multiple values at once, e.g. <code>level:3|6|9</code> to find all cards that are level 3, 6, or 9.<br/><br/>
 
 <h2>Examples</h2>
 <ul>
@@ -39,4 +41,5 @@ The following search operators are supported:
   <li>All counter traps that can negate summons: <a href="/?q=c%3Atrap+t%3Acounter+e%3A%22negate+the+summon%22"><code>c:trap t:counter e:"negate the summon"</code></a></li>
   <li>All effect monsters printed in Legend of Blue-Eyes: <a href="/?q=set%3Alob+c%3Aeffect"><code>set:lob c:effect</code></a></li>
   <li>All Zoodiac cards that are currently banned: <a href="/?q=legal%3A0+zoodiac"><code>legal:0 zoodiac</code></a></li>
+  <li>All chaos-type effect monsters that are level 6 or 8: <a href="/?q=a%3Alight%7Cdark+c%3Aeffect+l%3A6%7C8"><code>a:light|dark c:effect l:6|8</code></a></li>
 </ul>
