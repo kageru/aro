@@ -13,4 +13,4 @@ time = { version = "0.3.17", features = ["serde", "serde-human-readable"] }
 regex = { version = "1.7.1", default_features = false, features = ["std"] }
 
 [dev-dependencies]
-test-case = "2.2.2"
+test-case = "3.1"
