@@ -66,7 +66,7 @@ pub struct Set {
 impl Card {
     pub fn extended_info(&self) -> Result<String, fmt::Error> {
         let mut s = String::with_capacity(1000);
-        write!(s, "<p>Click <a href=\"https://db.ygorganization.com/search#card:{}\">here</a> for rulings.</p>", &self.name)?;
+        write!(s, "<p><a href=\"https://db.ygorganization.com/search#card:{}\">Rulings</a> – <a href=\"https://yugipedia.com/wiki/{}\">Yugipedia</a></p>", &self.name, &self.name.replace(' ', "_"))?;
         s.push_str("<h3>Printings:</h3>");
         for printing in &self.card_sets {
             write!(s, "{}: {} ({})", printing.set_name, printing.set_code, printing.set_rarity)?;
