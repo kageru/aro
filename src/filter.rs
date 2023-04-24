@@ -62,9 +62,7 @@ fn get_field_value(card: &SearchCard, field: Field) -> Value {
         Field::Level => Value::Numerical(card.level.unwrap_or(0)),
         Field::LinkRating => Value::Numerical(card.link_rating.unwrap_or(0)),
         Field::Year => Value::Numerical(card.original_year.unwrap_or(0)),
-        // Search in any of the sets. This can lead to false positives if Konami ever decides to print LOB2 because `set:LOB` would also match that.
-        // On the bright side, this means `set:HA` matches all Hidden Arsenals (plus reprints in HAC), but also all other set codes that contain HA.
-        Field::Set => Value::String(card.sets.join(" ")),
+        Field::Set => Value::Multiple(card.sets.clone().into_iter().map(Value::String).collect()),
         Field::Type => Value::String(card.r#type.clone()),
         Field::Attribute => Value::String(card.attribute.clone().unwrap_or_default()),
         Field::Class => Value::String(card.card_type.clone()),
@@ -79,6 +77,12 @@ fn filter_value(op: &Operator, field_value: &Value, query_value: &Value) -> bool
         (Value::String(field), Value::String(query)) => match op {
             Operator::Equal => field.contains(query),
             Operator::NotEqual => !field.contains(query),
+            _ => false,
+        },
+        // Currently only for sets the card was released in.
+        (Value::Multiple(field), query @ Value::String(_)) => match op {
+            Operator::Equal => field.iter().any(|f| f == query),
+            Operator::NotEqual => !field.iter().any(|f| f == query),
             _ => false,
         },
         _ => false,
@@ -108,14 +112,31 @@ mod tests {
         let lacooda = SearchCard::from(&serde_json::from_str::<Card>(RAW_MONSTER).unwrap());
         let lacooda_but_level_4 = SearchCard { level: Some(4), ..lacooda.clone() };
 
-        let filter_level_3 = parse_filters("l=3").unwrap();
-        assert!(filter_level_3.1[0](&lacooda));
+        let filter_level_3 = parse_filters("l=3").unwrap().1;
+        assert!(filter_level_3[0](&lacooda));
 
-        let filter_level_3_4 = parse_filters("l=3|4").unwrap();
-        assert!(filter_level_3_4.1[0](&lacooda));
-        assert!(filter_level_3_4.1[0](&lacooda_but_level_4));
+        let filter_level_3_4 = parse_filters("l=3|4").unwrap().1;
+        assert!(filter_level_3_4[0](&lacooda));
+        assert!(filter_level_3_4[0](&lacooda_but_level_4));
 
-        let filter_level_5 = parse_filters("l=5").unwrap();
-        assert!(!filter_level_5.1[0](&lacooda));
+        let filter_level_5 = parse_filters("l=5").unwrap().1;
+        assert!(!filter_level_5[0](&lacooda));
+    }
+
+    #[test]
+    fn set_filter_test() {
+        let lacooda = SearchCard::from(&serde_json::from_str::<Card>(RAW_MONSTER).unwrap());
+
+        let astral_pack_filter = parse_filters("set:ap03").unwrap().1;
+        assert!(astral_pack_filter[0](&lacooda));
+
+        let partial_filter = parse_filters("set:ap0").unwrap().1;
+        assert!(!partial_filter[0](&lacooda));
+
+        let not_astral_pack_filter = parse_filters("set!=ap03").unwrap().1;
+        assert!(!not_astral_pack_filter[0](&lacooda));
+
+        let astral_pack_4_filter = parse_filters("set:ap04").unwrap().1;
+        assert!(!astral_pack_4_filter[0](&lacooda));
     }
 }
