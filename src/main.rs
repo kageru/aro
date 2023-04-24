@@ -103,7 +103,9 @@ async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> AnyRe
             title:       "YGO card search".to_owned(),
             description: "Enter a query above to search".to_owned(),
             query:       None,
-            body:        "Enter a query above to search".to_owned(),
+            body:        "<p>Welcome to my cheap Scryfall clone for Yugioh.</p>\
+                          <p>Enter a query above to search or read the <a href=\"/help\">query syntax</a> for more information.</p>"
+                .to_owned(),
         },
     };
     add_data(&mut res, &data)?;
