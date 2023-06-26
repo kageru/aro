@@ -232,11 +232,13 @@ impl Display for RawCardFilter {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub enum Value {
     String(String),
     Numerical(i32),
     Multiple(Vec<Value>),
+    #[default]
+    None,
 }
 
 impl Display for Value {
@@ -252,7 +254,8 @@ impl Display for Value {
             Self::Numerical(n) => write!(f, "{n}"),
             Self::Multiple(m) => {
                 write!(f, "one of [{}]", m.iter().map(Value::to_string).join(", "))
-            }
+            },
+            Self::None => f.write_str("none"),
         }
     }
 }

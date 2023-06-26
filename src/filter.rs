@@ -56,12 +56,12 @@ pub type CardFilter = Box<dyn Fn(&SearchCard) -> bool>;
 
 fn get_field_value(card: &SearchCard, field: Field) -> Value {
     match field {
-        Field::Atk => Value::Numerical(card.atk.unwrap_or(0)),
-        Field::Def => Value::Numerical(card.def.unwrap_or(0)),
+        Field::Atk => card.atk.map(Value::Numerical).unwrap_or_default(),
+        Field::Def => card.def.map(Value::Numerical).unwrap_or_default(),
         Field::Legal => Value::Numerical(card.legal_copies),
-        Field::Level => Value::Numerical(card.level.unwrap_or(0)),
-        Field::LinkRating => Value::Numerical(card.link_rating.unwrap_or(0)),
-        Field::Year => Value::Numerical(card.original_year.unwrap_or(0)),
+        Field::Level => card.level.map(Value::Numerical).unwrap_or_default(),
+        Field::LinkRating => card.link_rating.map(Value::Numerical).unwrap_or_default(),
+        Field::Year => card.original_year.map(Value::Numerical).unwrap_or_default(),
         Field::Set => Value::Multiple(card.sets.clone().into_iter().map(Value::String).collect()),
         Field::Type => Value::String(card.r#type.clone()),
         Field::Attribute => Value::String(card.attribute.clone().unwrap_or_default()),
@@ -73,10 +73,12 @@ fn get_field_value(card: &SearchCard, field: Field) -> Value {
 
 fn filter_value(op: &Operator, field_value: &Value, query_value: &Value) -> bool {
     match (field_value, query_value) {
+        (Value::None, _) => false,
         (Value::Numerical(field), Value::Numerical(query)) => op.filter_number(Some(*field), *query),
         (Value::String(field), Value::String(query)) => match op {
             Operator::Equal => field.contains(query),
             Operator::NotEqual => !field.contains(query),
+            // greater/less than aren’t supported for string fields.
             _ => false,
         },
         // Currently only for sets the card was released in.
@@ -105,7 +107,10 @@ pub fn build_filter(RawCardFilter(field, op, value): RawCardFilter) -> Result<Ca
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{data::tests::RAW_MONSTER, parser::parse_filters};
+    use crate::{
+        data::tests::{RAW_LINK_MONSTER, RAW_MONSTER},
+        parser::parse_filters,
+    };
 
     #[test]
     fn level_filter_test() {
@@ -121,6 +126,13 @@ mod tests {
 
         let filter_level_5 = parse_filters("l=5").unwrap().1;
         assert!(!filter_level_5[0](&lacooda));
+    }
+
+    #[test]
+    fn filter_by_level_should_exclude_link_monsters() {
+        let bls = SearchCard::from(&serde_json::from_str::<Card>(RAW_LINK_MONSTER).unwrap());
+        let filter = parse_filters("l<=4").unwrap().1;
+        assert!(!filter[0](&bls));
     }
 
     #[test]

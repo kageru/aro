@@ -193,6 +193,43 @@ pub mod tests {
        ]
     }"#;
 
+    pub const RAW_LINK_MONSTER: &str = r#"
+    {
+      "id": 49202162,
+      "name": "Black Luster Soldier - Soldier of Chaos",
+      "type": "Link Monster",
+      "frameType": "link",
+      "desc": "3 monsters with different names\r\nIf this card was Link Summoned using a Level 7 or higher monster(s) as material, your opponent cannot target it with card effects, also it cannot be destroyed by your opponent's card effects. When this card destroys an opponent's monster by battle: You can activate 1 of these effects;\r\n● This card gains 1500 ATK.\r\n● This card can make a second attack during the Battle Phase of your next turn.\r\n● Banish 1 card on the field.",
+      "atk": 3000,
+      "race": "Warrior",
+      "attribute": "EARTH",
+      "archetype": "Black Luster Soldier",
+      "linkval": 3,
+      "linkmarkers": [
+        "Top",
+        "Bottom-Left",
+        "Bottom-Right"
+      ],
+      "card_sets": [
+        {
+          "set_name": "OTS Tournament Pack 17",
+          "set_code": "OP17-EN003",
+          "set_rarity": "Ultimate Rare",
+          "set_rarity_code": "(UtR)",
+          "set_price": "75.77"
+        }
+      ],
+      "card_images": [
+        {
+          "id": 49202162,
+          "image_url": "https://images.ygoprodeck.com/images/cards/49202162.jpg",
+          "image_url_small": "https://images.ygoprodeck.com/images/cards_small/49202162.jpg",
+          "image_url_cropped": "https://images.ygoprodeck.com/images/cards_cropped/49202162.jpg"
+        }
+      ]
+    }
+    "#;
+
     #[test]
     fn test_spell() {
         let coffin: Card = serde_json::from_str(RAW_SPELL).unwrap();
