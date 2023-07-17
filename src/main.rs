@@ -1,11 +1,22 @@
-#![feature(option_result_contains, once_cell)]
+#![feature(lazy_cell)]
 use actix_web::{get, http::header, web, App, Either, HttpResponse, HttpServer};
 use data::{Card, CardInfo, Set};
 use filter::SearchCard;
 use itertools::Itertools;
 use regex::{Captures, Regex};
 use serde::Deserialize;
-use std::{collections::HashMap, fmt::Write, fs::File, io::BufReader, net::Ipv4Addr, sync::LazyLock, time::Instant};
+use std::{
+    collections::HashMap,
+    fmt::Write,
+    fs::File,
+    io::BufReader,
+    net::Ipv4Addr,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        LazyLock,
+    },
+    time::Instant,
+};
 use time::Date;
 
 mod data;
@@ -81,12 +92,20 @@ struct PageData {
 
 const HEADER: &str = include_str!("../static/header.html");
 const HELP_CONTENT: &str = include_str!("../static/help.html");
-const FOOTER: &str = r#"<div id="bottom">
+static VIEW_COUNT: AtomicUsize = AtomicUsize::new(0);
+fn footer() -> String {
+    format!(
+        r#"<div id="bottom">
+<span style="color: #bbb">{}</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="/">Home</a>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="/help">Query Syntax</a>
 </div>
-</body></html>"#;
+</body></html>"#,
+        VIEW_COUNT.fetch_add(1, Ordering::Relaxed)
+    )
+}
 
 #[get("/")]
 async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> AnyResult<HttpResponse> {
@@ -141,7 +160,7 @@ async fn card_info(card_id: web::Path<usize>) -> AnyResult<HttpResponse> {
 
 #[get("/help")]
 async fn help() -> AnyResult<HttpResponse> {
-    let mut res = String::with_capacity(HEADER.len() + HELP_CONTENT.len() + FOOTER.len() + 250);
+    let mut res = String::with_capacity(HEADER.len() + HELP_CONTENT.len() + 500);
     let data = PageData {
         query:       None,
         title:       "Query Syntax - YGO Card Database".to_owned(),
@@ -224,6 +243,6 @@ fn add_data(res: &mut String, pd: &PageData) -> AnyResult<()> {
     );
     add_searchbox(res, &pd.query)?;
     res.push_str(&pd.body);
-    res.push_str(FOOTER);
+    res.push_str(&footer());
     Ok(())
 }
