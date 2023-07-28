@@ -83,6 +83,12 @@ struct Query {
 }
 
 #[derive(Debug)]
+enum TargetPage {
+    Data(PageData),
+    Redirect(String),
+}
+
+#[derive(Debug)]
 struct PageData {
     description: String,
     title:       String,
@@ -118,7 +124,7 @@ async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> AnyRe
     let mut res = String::with_capacity(10_000);
     let data = match q {
         Some(q) => compute_results(q)?,
-        None => PageData {
+        None => TargetPage::Data(PageData {
             title:       "YGO card search".to_owned(),
             description: "Enter a query above to search".to_owned(),
             query:       None,
@@ -126,10 +132,15 @@ async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> AnyRe
                           <p>Enter a query above to search or read the <a href=\"/help\">query syntax</a> for more information.</p>\
                           <p>The source code is available <a href=\"https://git.kageru.moe/kageru/aro\">on Gitea</a>.</p>"
                 .to_owned(),
-        },
+        }),
     };
-    add_data(&mut res, &data)?;
-    Ok(HttpResponse::Ok().insert_header(header::ContentType::html()).body(res))
+    match data {
+        TargetPage::Data(data) => {
+            add_data(&mut res, &data)?;
+            Ok(HttpResponse::Ok().insert_header(header::ContentType::html()).body(res))
+        }
+        TargetPage::Redirect(target) => Ok(HttpResponse::Found().insert_header((header::LOCATION, target)).finish()),
+    }
 }
 
 #[get("/card/{id}")]
@@ -187,18 +198,18 @@ fn add_searchbox(res: &mut String, query: &Option<String>) -> std::fmt::Result {
     )
 }
 
-fn compute_results(raw_query: String) -> AnyResult<PageData> {
+fn compute_results(raw_query: String) -> AnyResult<TargetPage> {
     let mut body = String::with_capacity(10_000);
     let (raw_filters, query) = match parser::parse_filters(raw_query.trim()) {
         Ok(q) => q,
         Err(e) => {
             let s = format!("Could not parse query: {e:?}");
-            return Ok(PageData {
+            return Ok(TargetPage::Data(PageData {
                 description: s.clone(),
                 query:       Some(raw_query),
                 body:        s,
                 title:       "YGO Card Database".to_owned(),
-            });
+            }));
         }
     };
     let now = Instant::now();
@@ -210,32 +221,35 @@ fn compute_results(raw_query: String) -> AnyResult<PageData> {
         .collect();
     let readable_query = format!("Showing {} results where {}", matches.len(), raw_filters.iter().map(|f| f.to_string()).join(" and "),);
     write!(body, "<span class=\"meta\">{readable_query} (took {:?})</span>", now.elapsed())?;
-    if matches.is_empty() {
-        return Ok(PageData {
+    match matches[..] {
+        [] => Ok(TargetPage::Data(PageData {
             description: readable_query,
             query: Some(raw_query),
             body,
             title: "No results - YGO Card Database".to_owned(),
-        });
+        })),
+        [card] => Ok(TargetPage::Redirect(format!("/card/{}", card.id))),
+        ref cards => {
+            body.push_str("<div style=\"display: flex; flex-wrap: wrap;\">");
+            for card in cards {
+                write!(
+                    body,
+                    r#"<a class="cardresult" href="/card/{}"><img alt="Card Image: {}" src="{}/static/thumb/{}.jpg" class="thumb"/>{card}</a>"#,
+                    card.id,
+                    card.name,
+                    IMG_HOST.as_str(),
+                    card.id
+                )?;
+            }
+            body.push_str("</div>");
+            Ok(TargetPage::Data(PageData {
+                description: readable_query,
+                query: Some(raw_query),
+                body,
+                title: format!("{} results - YGO Card Database", cards.len()),
+            }))
+        }
     }
-    body.push_str("<div style=\"display: flex; flex-wrap: wrap;\">");
-    for card in &matches {
-        write!(
-            body,
-            r#"<a class="cardresult" href="/card/{}"><img alt="Card Image: {}" src="{}/static/thumb/{}.jpg" class="thumb"/>{card}</a>"#,
-            card.id,
-            card.name,
-            IMG_HOST.as_str(),
-            card.id
-        )?;
-    }
-    body.push_str("</div>");
-    Ok(PageData {
-        description: readable_query,
-        query: Some(raw_query),
-        body,
-        title: format!("{} results - YGO Card Database", matches.len()),
-    })
 }
 
 fn add_data(res: &mut String, pd: &PageData) -> AnyResult<()> {
