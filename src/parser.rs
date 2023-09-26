@@ -98,7 +98,7 @@ fn values(input: &str) -> IResult<&str, Value> {
 
 fn parse_values(input: &str) -> Result<Value, String> {
     if input.starts_with('/') {
-        return parse_single_value(input);
+        parse_single_value(input)
     } else {
         let values = input.split('|').map(parse_single_value).collect::<Result<Vec<Value>, String>>()?;
         Ok(match values.as_slice() {
@@ -111,8 +111,8 @@ fn parse_values(input: &str) -> Result<Value, String> {
 fn parse_single_value(input: &str) -> Result<Value, String> {
     Ok(match input.parse() {
         Ok(n) => Value::Numerical(n),
-        Err(_) => match try { Value::Regex(Regex::new(&input.strip_prefix('/')?.strip_suffix('/')?.to_lowercase()).ok()?) } {
-            Some(regex) => regex,
+        Err(_) => match try { Regex::new(&input.strip_prefix('/')?.strip_suffix('/')?.to_lowercase()).ok()? } {
+            Some(regex) => Value::Regex(regex),
             None => Value::String(sanitize(input)?),
         },
     })
