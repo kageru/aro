@@ -31,7 +31,9 @@ The following search operators are supported:
   <li>Comparisons (<code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code>) check if the value is less than, greater than, less than or equal, and greater than or equal to your search. <a href="/?q=atk%3E%3D4000"><code>atk&gt;=4000</code></a> will show all cards with an ATK of at least 4000. These operators do not work for text fields.</li>
 </ul>
 <br/>
-It is possible to filter for multiple values at once, e.g. <code>level:3|6|9</code> to find all cards that are level 3, 6, or 9.<br/><br/>
+<p>It is possible to filter for multiple values at once, e.g. <code>level:3|6|9</code> to find all cards that are level 3, 6, or 9.</p>
+<p>Searching by regex is supported. Simply put the search string in slashes, i.e. <a href="/?q=o%3A%2Fdraw+%5Cd%2B+card%2F"><code>o:/draw \d+ card/</code></a>. No regex flags can be passed, but i (case-insensitive) is enabled by default.</p>
+<br/>
 
 <h2>Examples</h2>
 <ul>
