@@ -81,6 +81,12 @@ fn filter_value(op: &Operator, field_value: &Value, query_value: &Value) -> bool
             // greater/less than aren’t supported for string fields.
             _ => false,
         },
+        (Value::String(field), Value::Regex(query)) => match op {
+            Operator::Equal => query.is_match(field),
+            Operator::NotEqual => !query.is_match(field),
+            // greater/less than aren’t supported for string fields.
+            _ => false,
+        },
         // Currently only for sets the card was released in.
         (Value::Multiple(field), query @ Value::String(_)) => match op {
             Operator::Equal => field.iter().any(|f| f == query),
@@ -150,5 +156,14 @@ mod tests {
 
         let astral_pack_4_filter = parse_filters("set:ap04").unwrap().1;
         assert!(!astral_pack_4_filter[0](&lacooda));
+    }
+
+    #[test]
+    fn regex_filter_test() {
+        let lacooda = SearchCard::from(&serde_json::from_str::<Card>(RAW_MONSTER).unwrap());
+        let bls = SearchCard::from(&serde_json::from_str::<Card>(RAW_LINK_MONSTER).unwrap());
+        let draw_filter = parse_filters("o:/draw \\d cards?/").unwrap().1;
+        assert!(draw_filter[0](&lacooda));
+        assert!(!draw_filter[0](&bls));
     }
 }

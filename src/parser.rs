@@ -14,6 +14,7 @@ use nom::{
     sequence::{delimited, preceded, tuple},
     IResult,
 };
+use regex::Regex;
 
 pub fn parse_filters(input: &str) -> Result<(Vec<RawCardFilter>, Vec<CardFilter>), String> {
     parse_raw_filters(input).map_err(|e| format!("Error while parsing filters “{input}”: {e:?}")).and_then(|(rest, mut v)| {
@@ -47,20 +48,19 @@ fn parse_raw_filters(input: &str) -> IResult<&str, Vec<RawCardFilter>> {
 }
 
 fn word_non_empty(input: &str) -> IResult<&str, &str> {
-    verify(alt((take_until1(" "), rest)), |s: &str| s.len() >= 2)(input)
+    verify(alt((take_until1(" "), rest)), |s: &str| !s.is_empty())(input)
 }
 
 fn sanitize(query: &str) -> Result<String, String> {
-    if query.contains(OPERATOR_CHARS) || query.is_empty() {
-        Err(format!("Invalid query: {query}"))
+    if query.is_empty() {
+        Err("Query must not be empty".to_owned())
     } else {
         Ok(query.to_lowercase())
     }
 }
 
 fn fallback_filter(query: &str) -> Result<RawCardFilter, String> {
-    let q = sanitize(query)?;
-    Ok(RawCardFilter(Field::Name, Operator::Equal, Value::String(q)))
+    Ok(RawCardFilter(Field::Name, Operator::Equal, Value::String(sanitize(query)?)))
 }
 
 fn parse_raw_filter(input: &str) -> IResult<&str, RawCardFilter> {
@@ -87,6 +87,7 @@ fn values(input: &str) -> IResult<&str, Value> {
     map_res(
         alt((
             delimited(char('"'), take_until1("\""), char('"')),
+            recognize(delimited(char('/'), take_until1("/"), char('/'))),
             recognize(separated_list1(char('|'), take_until1(" |"))),
             take_until1(" "),
             rest,
@@ -106,7 +107,12 @@ fn parse_values(input: &str) -> Result<Value, String> {
 fn parse_single_value(input: &str) -> Result<Value, String> {
     Ok(match input.parse() {
         Ok(n) => Value::Numerical(n),
-        Err(_) => Value::String(sanitize(input)?),
+        Err(_) => {
+            match try { Value::Regex(Regex::new(&input.strip_prefix('/')?.strip_suffix('/')?.to_lowercase()).ok()?) } {
+                Some(regex) => regex,
+                None => Value::String(sanitize(input)?),
+            }
+        }
     })
 }
 
@@ -232,14 +238,31 @@ impl Display for RawCardFilter {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub enum Value {
     String(String),
+    Regex(Regex),
     Numerical(i32),
     Multiple(Vec<Value>),
     #[default]
     None,
 }
+
+// Manually implementing this because `Regex` isn’t `PartialEq`
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::String(s1), Value::String(s2)) => s1 == s2,
+            (Value::Numerical(a), Value::Numerical(b)) => a == b,
+            (Value::Multiple(v1), Value::Multiple(v2)) => v1 == v2,
+            (Value::Regex(r1), Value::Regex(r2)) => r1.as_str() == r2.as_str(),
+            (Value::None, Value::None) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Value {}
 
 impl Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -251,10 +274,11 @@ impl Display for Value {
                     f.write_str(s)
                 }
             }
+            Self::Regex(r) => write!(f, "Regex \"{}\"", r.as_str()),
             Self::Numerical(n) => write!(f, "{n}"),
             Self::Multiple(m) => {
                 write!(f, "one of [{}]", m.iter().map(Value::to_string).join(", "))
-            },
+            }
             Self::None => f.write_str("none"),
         }
     }
@@ -275,19 +299,6 @@ mod tests {
     #[test_case("c!=synchro" => Ok(("", RawCardFilter(Field::Class, Operator::NotEqual, Value::String("synchro".to_owned())))))]
     fn successful_parsing_test(input: &str) -> IResult<&str, RawCardFilter> {
         parse_raw_filter(input)
-    }
-
-    #[test_case("atk<=>1")]
-    #[test_case("atk=50|")]
-    #[test_case("def=|")]
-    #[test_case("l===10")]
-    #[test_case("t=")]
-    #[test_case("=100")]
-    #[test_case("a")]
-    fn unsuccessful_parsing_test(input: &str) {
-        if let Ok((filters, _)) = parse_filters(input) {
-            assert!(false, "Should have failed, but parsed as {filters:?}");
-        }
     }
 
     #[test]
