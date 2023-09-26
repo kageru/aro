@@ -97,22 +97,24 @@ fn values(input: &str) -> IResult<&str, Value> {
 }
 
 fn parse_values(input: &str) -> Result<Value, String> {
-    let values = input.split('|').map(parse_single_value).collect::<Result<Vec<Value>, String>>()?;
-    Ok(match values.as_slice() {
-        [v] => v.clone(),
-        _ => Value::Multiple(values),
-    })
+    if input.starts_with('/') {
+        return parse_single_value(input);
+    } else {
+        let values = input.split('|').map(parse_single_value).collect::<Result<Vec<Value>, String>>()?;
+        Ok(match values.as_slice() {
+            [v] => v.clone(),
+            _ => Value::Multiple(values),
+        })
+    }
 }
 
 fn parse_single_value(input: &str) -> Result<Value, String> {
     Ok(match input.parse() {
         Ok(n) => Value::Numerical(n),
-        Err(_) => {
-            match try { Value::Regex(Regex::new(&input.strip_prefix('/')?.strip_suffix('/')?.to_lowercase()).ok()?) } {
-                Some(regex) => regex,
-                None => Value::String(sanitize(input)?),
-            }
-        }
+        Err(_) => match try { Value::Regex(Regex::new(&input.strip_prefix('/')?.strip_suffix('/')?.to_lowercase()).ok()?) } {
+            Some(regex) => regex,
+            None => Value::String(sanitize(input)?),
+        },
     })
 }
 
@@ -347,5 +349,16 @@ mod tests {
         let (rest, filter) = parse_raw_filter(r#"o:"destroy that target""#).unwrap();
         assert_eq!(rest, "");
         assert_eq!(filter, RawCardFilter(Field::Text, Operator::Equal, Value::String("destroy that target".into())));
+    }
+
+    #[test]
+    fn regex_should_have_precedence_over_split() {
+        let RawCardFilter(field, op, value) = parse_raw_filters("o:/(if|when) this card is synchro summoned:/").unwrap().1[0].clone();
+        assert_eq!(field, Field::Text);
+        assert_eq!(op, Operator::Equal);
+        match value {
+            Value::Regex(r) => assert_eq!(r.as_str(), "(if|when) this card is synchro summoned:"),
+            _ => panic!("Should have been a regex"),
+        }
     }
 }
