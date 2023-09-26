@@ -1,5 +1,5 @@
 #![feature(lazy_cell, try_blocks)]
-use actix_web::{get, http::header, web, App, Either, HttpResponse, HttpServer};
+use actix_web::{http::header, route, web, App, Either, HttpResponse, HttpServer};
 use data::{Card, CardInfo, Set};
 use filter::SearchCard;
 use itertools::Itertools;
@@ -113,7 +113,7 @@ fn footer() -> String {
     )
 }
 
-#[get("/")]
+#[route("/", method = "GET", method = "HEAD")]
 async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> AnyResult<HttpResponse> {
     let q = match q {
         Some(Either::Left(web::Query(Query { q }))) => Some(q),
@@ -143,7 +143,7 @@ async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> AnyRe
     }
 }
 
-#[get("/card/{id}")]
+#[route("/card/{id}", method = "GET", method = "HEAD")]
 async fn card_info(card_id: web::Path<usize>) -> AnyResult<HttpResponse> {
     let mut res = String::with_capacity(2_000);
     let data = match CARDS_BY_ID.get(&card_id) {
@@ -170,7 +170,7 @@ async fn card_info(card_id: web::Path<usize>) -> AnyResult<HttpResponse> {
     Ok(HttpResponse::Ok().insert_header(header::ContentType::html()).body(res))
 }
 
-#[get("/help")]
+#[route("/help", method = "GET", method = "HEAD")]
 async fn help() -> AnyResult<HttpResponse> {
     let mut res = String::with_capacity(HEADER.len() + HELP_CONTENT.len() + 500);
     let data = PageData {
