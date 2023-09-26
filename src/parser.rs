@@ -97,24 +97,21 @@ fn values(input: &str) -> IResult<&str, Value> {
 }
 
 fn parse_values(input: &str) -> Result<Value, String> {
-    if input.starts_with('/') {
-        parse_single_value(input)
+    Ok(if let Some(regex) = input.strip_prefix('/').and_then(|i| i.strip_suffix('/')) {
+        Value::Regex(Regex::new(&format!("(?i){regex}")).map_err(|_| format!("Invalid regex: {regex}"))?)
     } else {
         let values = input.split('|').map(parse_single_value).collect::<Result<Vec<Value>, String>>()?;
-        Ok(match values.as_slice() {
+        match values.as_slice() {
             [v] => v.clone(),
             _ => Value::Multiple(values),
-        })
-    }
+        }
+    })
 }
 
 fn parse_single_value(input: &str) -> Result<Value, String> {
     Ok(match input.parse() {
         Ok(n) => Value::Numerical(n),
-        Err(_) => match try { Regex::new(&input.strip_prefix('/')?.strip_suffix('/')?.to_lowercase()).ok()? } {
-            Some(regex) => Value::Regex(regex),
-            None => Value::String(sanitize(input)?),
-        },
+        Err(_) => Value::String(sanitize(input)?),
     })
 }
 
@@ -357,7 +354,7 @@ mod tests {
         assert_eq!(field, Field::Text);
         assert_eq!(op, Operator::Equal);
         match value {
-            Value::Regex(r) => assert_eq!(r.as_str(), "(if|when) this card is synchro summoned:"),
+            Value::Regex(r) => assert_eq!(r.as_str(), "(?i)(if|when) this card is synchro summoned:"),
             _ => panic!("Should have been a regex"),
         }
     }
