@@ -126,7 +126,7 @@ async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> AnyRe
     let data = match q {
         Some(q) => compute_results(q)?,
         None => TargetPage::Data(PageData {
-            title:       "YGO card search".to_owned(),
+            title:       NAME.to_owned(),
             description: "Enter a query above to search".to_owned(),
             query:       None,
             body:        "<p>Welcome to my cheap Scryfall clone for Yugioh.</p>\
@@ -189,7 +189,7 @@ fn add_searchbox(res: &mut String, query: &Option<String>) -> std::fmt::Result {
         res,
         r#"
 <form action="/">
-  <input type="text" name="q" id="searchbox" placeholder="Enter query (e.g. l:5 c:synchro atk>2000)" value="{}"><input type="submit" id="submit" value="🔍">
+  <input type="text" name="q" autofocus id="searchbox" placeholder="Enter query (e.g. l:5 c:synchro atk>2000)" value="{}"><input type="submit" id="submit" value="🔍">
 </form>
 "#,
         match &query {
