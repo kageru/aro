@@ -96,6 +96,7 @@ struct PageData {
     body:        String,
 }
 
+const NAME: &str = "Unofficial YGO Card Search";
 const HEADER: &str = include_str!("../static/header.html");
 const HELP_CONTENT: &str = include_str!("../static/help.html");
 static VIEW_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -148,7 +149,7 @@ async fn card_info(card_id: web::Path<usize>) -> AnyResult<HttpResponse> {
     let mut res = String::with_capacity(2_000);
     let data = match CARDS_BY_ID.get(&card_id) {
         Some(card) => PageData {
-            title:       format!("{} - YGO Card Database", card.name),
+            title:       format!("{} - {NAME}", card.name),
             description: card.short_info()?,
             query:       None,
             body:        format!(
@@ -160,8 +161,8 @@ async fn card_info(card_id: web::Path<usize>) -> AnyResult<HttpResponse> {
             ),
         },
         None => PageData {
-            description: "Card not found - YGO Card Database".to_owned(),
-            title:       "Card not found - YGO Card Database".to_owned(),
+            description: format!("Card not found - {NAME}"),
+            title:       format!("Card not found - {NAME}"),
             query:       None,
             body:        "Card not found".to_owned(),
         },
@@ -175,7 +176,7 @@ async fn help() -> AnyResult<HttpResponse> {
     let mut res = String::with_capacity(HEADER.len() + HELP_CONTENT.len() + 500);
     let data = PageData {
         query:       None,
-        title:       "Query Syntax - YGO Card Database".to_owned(),
+        title:       format!("Query Syntax - {NAME}"),
         body:        HELP_CONTENT.to_owned(),
         description: String::new(),
     };
@@ -208,7 +209,7 @@ fn compute_results(raw_query: String) -> AnyResult<TargetPage> {
                 description: s.clone(),
                 query:       Some(raw_query),
                 body:        s,
-                title:       "YGO Card Database".to_owned(),
+                title:       NAME.to_owned(),
             }));
         }
     };
@@ -226,7 +227,7 @@ fn compute_results(raw_query: String) -> AnyResult<TargetPage> {
             description: readable_query,
             query: Some(raw_query),
             body,
-            title: "No results - YGO Card Database".to_owned(),
+            title: format!("No results - {NAME}"),
         })),
         [card] => Ok(TargetPage::Redirect(format!("/card/{}", card.id))),
         ref cards => {
@@ -246,7 +247,7 @@ fn compute_results(raw_query: String) -> AnyResult<TargetPage> {
                 description: readable_query,
                 query: Some(raw_query),
                 body,
-                title: format!("{} results - YGO Card Database", cards.len()),
+                title: format!("{} results - {NAME}", cards.len()),
             }))
         }
     }
