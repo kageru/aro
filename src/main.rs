@@ -255,7 +255,7 @@ fn compute_results(raw_query: String) -> AnyResult<TargetPage> {
 
 fn add_data(res: &mut String, pd: &PageData) -> AnyResult<()> {
     res.push_str(
-        &HEADER.replacen("{DESCRIPTION}", &pd.description, 2).replacen("{IMG_HOST}", &IMG_HOST, 1).replacen("{TITLE}", &pd.title, 2),
+        &HEADER.replacen("{DESCRIPTION}", &pd.description.replace('"', r#"\""#), 2).replacen("{IMG_HOST}", &IMG_HOST, 1).replacen("{TITLE}", &pd.title, 2),
     );
     add_searchbox(res, &pd.query)?;
     res.push_str(&pd.body);
