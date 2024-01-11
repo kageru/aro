@@ -131,7 +131,8 @@ async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> AnyRe
             query:       None,
             body:        "<p>Welcome to my cheap Scryfall clone for Yugioh.</p>\
                           <p>Enter a query above to search or read the <a href=\"/help\">query syntax</a> for more information.</p>\
-                          <p>The source code is available <a href=\"https://git.kageru.moe/kageru/aro\">on Gitea</a>.</p>"
+                          <p>The source code is available <a href=\"https://git.kageru.moe/kageru/aro\">on Gitea</a>.</p>\
+                          <p>If you have any feedback, feel free to add @kageru on Discord or send an email to &lt;that name&gt;@encode.moe.</p>"
                 .to_owned(),
         }),
     };
