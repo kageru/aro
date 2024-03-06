@@ -32,6 +32,8 @@ pub struct Card {
     #[serde(default)]
     pub card_sets:    Vec<CardSet>,
     pub banlist_info: Option<BanlistInfo>,
+    #[serde(default)]
+    pub card_prices:  Vec<CardPrice>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq, Clone, Copy, Default)]
@@ -63,10 +65,18 @@ pub struct Set {
     pub tcg_date: Option<Date>,
 }
 
+#[derive(Debug, Deserialize, PartialEq, Eq, Clone, Default)]
+pub struct CardPrice {
+    cardmarket_price: String,
+    tcgplayer_price:  String,
+}
+
 impl Card {
     pub fn extended_info(&self) -> Result<String, fmt::Error> {
         let mut s = String::with_capacity(1000);
-        write!(s, "<p><a href=\"https://db.ygorganization.com/search#card:{}\">Rulings</a> – <a href=\"https://yugipedia.com/wiki/{:08}\">Yugipedia</a></p>", &self.name, &self.id)?;
+        // the ygorg search breaks for I:P and similar criminals.
+        let url_name = self.name.replace(':', " ");
+        write!(s, "<p><a href=\"https://db.ygorganization.com/search#card:{url_name}\">Rulings</a> – <a href=\"https://yugipedia.com/wiki/{:08}\">Yugipedia</a></p>", &self.id)?;
         s.push_str("<h3>Printings:</h3>");
         for printing in &self.card_sets {
             write!(s, "{}: {} ({})", printing.set_name, printing.set_code, printing.set_rarity)?;
@@ -74,6 +84,11 @@ impl Card {
                 write!(s, " - {date}")?;
             }
             s.push_str("<br/>");
+        }
+        if let Some(CardPrice { cardmarket_price, tcgplayer_price }) = self.card_prices.first() {
+            s.push_str("<h3>Prices:</h3>");
+            write!(s, "Cardmarket: <a href=\"https://www.cardmarket.com/en/YuGiOh/Products/Search?searchString={url_name}\">{cardmarket_price}&ThinSpace;€</a><br/>")?;
+            write!(s, "TCGplayer: <a href=\"https://www.tcgplayer.com/search/yugioh/product?productLineName=yugioh&q={url_name}\">$&ThinSpace;{tcgplayer_price}</a><br/>")?;
         }
         Ok(s)
     }
