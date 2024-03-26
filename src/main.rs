@@ -138,7 +138,7 @@ async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> AnyRe
     };
     match data {
         TargetPage::Data(data) => {
-            add_data(&mut res, &data)?;
+            add_data(&mut res, &data, None)?;
             Ok(HttpResponse::Ok().insert_header(header::ContentType::html()).body(res))
         }
         TargetPage::Redirect(target) => Ok(HttpResponse::Found().insert_header((header::LOCATION, target)).finish()),
@@ -168,7 +168,7 @@ async fn card_info(card_id: web::Path<usize>) -> AnyResult<HttpResponse> {
             body:        "Card not found".to_owned(),
         },
     };
-    add_data(&mut res, &data)?;
+    add_data(&mut res, &data, Some(*card_id))?;
     Ok(HttpResponse::Ok().insert_header(header::ContentType::html()).body(res))
 }
 
@@ -181,7 +181,7 @@ async fn help() -> AnyResult<HttpResponse> {
         body:        HELP_CONTENT.to_owned(),
         description: String::new(),
     };
-    add_data(&mut res, &data)?;
+    add_data(&mut res, &data, None)?;
     Ok(HttpResponse::Ok().insert_header(header::ContentType::html()).body(res))
 }
 
@@ -254,9 +254,20 @@ fn compute_results(raw_query: String) -> AnyResult<TargetPage> {
     }
 }
 
-fn add_data(res: &mut String, pd: &PageData) -> AnyResult<()> {
+fn add_data(res: &mut String, pd: &PageData, card_id: Option<usize>) -> AnyResult<()> {
     res.push_str(
-        &HEADER.replacen("{DESCRIPTION}", &pd.description.replace('"', r#"\""#), 2).replacen("{IMG_HOST}", &IMG_HOST, 1).replacen("{TITLE}", &pd.title, 2),
+        &HEADER
+            .replacen("{DESCRIPTION}", &pd.description.replace('"', r#"\""#), 2)
+            .replacen("{IMG_HOST}", &IMG_HOST, 2)
+            .replacen("{TITLE}", &pd.title, 2)
+            .replacen(
+                "{OG_IMAGE}",
+                &match card_id {
+                    Some(id) => format!(r#"<meta property="og:image" content="{}/static/thumb/{id}.jpg" />"#, IMG_HOST.as_str()),
+                    None => String::new(),
+                },
+                1,
+            ),
     );
     add_searchbox(res, &pd.query)?;
     res.push_str(&pd.body);
