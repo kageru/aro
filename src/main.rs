@@ -263,7 +263,7 @@ fn add_data(res: &mut String, pd: &PageData, card_id: Option<usize>) -> AnyResul
             .replacen(
                 "{OG_IMAGE}",
                 &match card_id {
-                    Some(id) => format!(r#"<meta property="og:image" content="{}/static/thumb/{id}.jpg" />"#, IMG_HOST.as_str()),
+                    Some(id) => format!(r#"<meta property="og:image" content="{}/static/full/{id}.jpg" />"#, IMG_HOST.as_str()),
                     None => String::new(),
                 },
                 1,
