@@ -24,6 +24,7 @@ pub struct SearchCard {
     sets:          Vec<String>,
     original_year: Option<i32>,
     legal_copies:  i32,
+    price:         Option<i32>,
 }
 
 impl From<&Card> for SearchCard {
@@ -48,27 +49,35 @@ impl From<&Card> for SearchCard {
                 .map(Date::year)
                 .min(),
             legal_copies:  card.banlist_info.map(|bi| bi.ban_tcg).unwrap_or(BanlistStatus::Unlimited) as i32,
+            price:         card
+                .card_prices
+                .iter()
+                .flat_map(|p| vec![p.cardmarket_price.parse::<f32>().ok(), p.tcgplayer_price.parse().ok()])
+                .flatten()
+                .map(|p| (p * 100.0) as i32)
+                .min(),
         }
     }
 }
 
 pub type CardFilter = Box<dyn Fn(&SearchCard) -> bool>;
 
-fn get_field_value(card: &SearchCard, field: Field) -> Value {
-    match field {
-        Field::Atk => card.atk.map(Value::Numerical).unwrap_or_default(),
-        Field::Def => card.def.map(Value::Numerical).unwrap_or_default(),
+fn get_field_value(card: &SearchCard, field: Field) -> Option<Value> {
+    Some(match field {
+        Field::Atk => Value::Numerical(card.atk?),
+        Field::Def => Value::Numerical(card.def?),
         Field::Legal => Value::Numerical(card.legal_copies),
-        Field::Level => card.level.map(Value::Numerical).unwrap_or_default(),
-        Field::LinkRating => card.link_rating.map(Value::Numerical).unwrap_or_default(),
-        Field::Year => card.original_year.map(Value::Numerical).unwrap_or_default(),
+        Field::Level => Value::Numerical(card.level?),
+        Field::LinkRating => Value::Numerical(card.link_rating?),
+        Field::Year => Value::Numerical(card.original_year?),
         Field::Set => Value::Multiple(card.sets.clone().into_iter().map(Value::String).collect()),
         Field::Type => Value::String(card.r#type.clone()),
         Field::Attribute => Value::String(card.attribute.clone().unwrap_or_default()),
         Field::Class => Value::String(card.card_type.clone()),
         Field::Name => Value::String(card.name.clone()),
         Field::Text => Value::String(card.text.clone()),
-    }
+        Field::Price => Value::Numerical(card.price?),
+    })
 }
 
 fn filter_value(op: &Operator, field_value: &Value, query_value: &Value) -> bool {
@@ -100,11 +109,11 @@ fn filter_value(op: &Operator, field_value: &Value, query_value: &Value) -> bool
 pub fn build_filter(RawCardFilter(field, op, value): RawCardFilter) -> Result<CardFilter, String> {
     Ok(match value {
         Value::Multiple(values) => Box::new(move |card: &SearchCard| {
-            let field_value = get_field_value(card, field);
+            let field_value = get_field_value(card, field).unwrap_or_default();
             values.iter().any(|query_value| filter_value(&op, &field_value, query_value))
         }),
         single_value => Box::new(move |card: &SearchCard| {
-            let field_value = get_field_value(card, field);
+            let field_value = get_field_value(card, field).unwrap_or_default();
             filter_value(&op, &field_value, &single_value)
         }),
     })
@@ -165,5 +174,16 @@ mod tests {
         let draw_filter = parse_filters("o:/draw \\d cards?/").unwrap().1;
         assert!(draw_filter[0](&lacooda));
         assert!(!draw_filter[0](&bls));
+    }
+
+    #[test]
+    fn price_filter_test() {
+        let lacooda = SearchCard::from(&serde_json::from_str::<Card>(RAW_MONSTER).unwrap());
+        let bls = SearchCard::from(&serde_json::from_str::<Card>(RAW_LINK_MONSTER).unwrap());
+        let price_filter = parse_filters("p>300").unwrap().1;
+        assert!(!price_filter[0](&lacooda));
+        assert!(price_filter[0](&bls));
+        let price_filter_2 = parse_filters("p<350").unwrap().1;
+        assert!(price_filter_2[0](&bls), "Should filter by the cheaper version");
     }
 }

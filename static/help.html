@@ -15,6 +15,7 @@ Currently supported search fields are:
   <li>The <code>text</code> (or <code>effect</code>, <code>eff</code>, <code>e</code>, or <code>o</code>) of a card. This is either the effect or flavor text (for normal monsters). For pendulum cards, this searches in both pendulum and monster effects. The <code>o</code> alias is to help my muscle memory coming from Scryfall.</li>
   <li>The <code>set</code> (or <code>s</code>) a card was printed in. This considers all printings, not just the original, and uses the set code (e.g. <code>ioc</code> for Invasion of Chaos or <code>pote</code> for Power of the Elements).</li>
   <li>The <code>copies</code> (or <code>legal</code>) you’re allowed to play according to the current banlist.</li>
+  <li>The <code>price</code> (or <code>p</code>) of the cheapest version of the card <em>in cents</em>. This will use tcgplayer or cardmarket, whichever is lower. Results can be off because of OCG cards on the market.</li>
 </ul>
 Anything not associated with a search field is interpreted as a search in the card name, so <a href="/?q=l%3A4+utopia"><code>l:4 utopia</code></a> will show all level/rank 4 monsters with “Utopia” in their name.<br/>
 If your search contains spaces (e.g. searching for an effect that says “destroy that target”), the text must be quoted like <code>effect:"destroy that target"</code>.

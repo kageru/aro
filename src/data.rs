@@ -67,8 +67,8 @@ pub struct Set {
 
 #[derive(Debug, Deserialize, PartialEq, Eq, Clone, Default)]
 pub struct CardPrice {
-    cardmarket_price: String,
-    tcgplayer_price:  String,
+    pub cardmarket_price: String,
+    pub tcgplayer_price:  String,
 }
 
 impl Card {
@@ -205,6 +205,12 @@ pub mod tests {
            "set_rarity_code": "(C)",
            "set_price": "2.07"
          }
+       ],
+       "card_prices": [
+         {
+           "cardmarket_price": "0.05",
+           "tcgplayer_price": "0.22"
+         }
        ]
     }"#;
 
@@ -240,6 +246,12 @@ pub mod tests {
           "image_url": "https://images.ygoprodeck.com/images/cards/49202162.jpg",
           "image_url_small": "https://images.ygoprodeck.com/images/cards_small/49202162.jpg",
           "image_url_cropped": "https://images.ygoprodeck.com/images/cards_cropped/49202162.jpg"
+        }
+      ],
+      "card_prices": [
+        {
+          "cardmarket_price": "3.70",
+          "tcgplayer_price": "3.30"
         }
       ]
     }
@@ -294,6 +306,7 @@ pub mod tests {
                     },
                     CardSet { set_name: "Gold Series".to_owned(), set_code: "GLD1-EN010".to_owned(), set_rarity: "Common".to_owned() }
                 ],
+                card_prices: vec![CardPrice { tcgplayer_price: "0.22".to_owned(), cardmarket_price: "0.05".to_owned() }],
                 ..Default::default()
             },
         )

@@ -125,6 +125,7 @@ pub enum Field {
     Level = 4,
     LinkRating = 6,
     Year = 8,
+    Price = 9,
     Set = 10,
     Type = 12,
     Attribute = 14,
@@ -148,6 +149,7 @@ impl Display for Field {
             Self::Set => "set",
             Self::Year => "year",
             Self::Legal => "allowed copies",
+            Self::Price => "price",
         })
     }
 }
@@ -168,6 +170,7 @@ impl FromStr for Field {
             "set" | "s" => Self::Set,
             "year" | "y" => Self::Year,
             "legal" | "copies" => Self::Legal,
+            "price" | "p" => Self::Price,
             _ => Err(s.to_string())?,
         })
     }
@@ -296,6 +299,7 @@ mod tests {
     #[test_case("l=10" => Ok(("", RawCardFilter(Field::Level, Operator::Equal, Value::Numerical(10)))))]
     #[test_case("Ib" => Ok(("", RawCardFilter(Field::Name, Operator::Equal, Value::String("ib".to_owned())))))]
     #[test_case("c!=synchro" => Ok(("", RawCardFilter(Field::Class, Operator::NotEqual, Value::String("synchro".to_owned())))))]
+    #[test_case("p<150" => Ok(("", RawCardFilter(Field::Price, Operator::Less, Value::Numerical(150)))))]
     fn successful_parsing_test(input: &str) -> IResult<&str, RawCardFilter> {
         parse_raw_filter(input)
     }
