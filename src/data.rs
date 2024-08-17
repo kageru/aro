@@ -44,7 +44,7 @@ pub struct BanlistInfo {
 
 #[derive(Debug, Deserialize, PartialEq, Eq, Clone, Copy, Default)]
 pub enum BanlistStatus {
-    Banned = 0,
+    Forbidden = 0,
     Limited = 1,
     #[serde(rename = "Semi-Limited")]
     SemiLimited = 2,
@@ -137,7 +137,7 @@ impl Display for Card {
             r#"<h2 class="cardname">{} {}</h2><em>"#,
             &self.name,
             match self.banlist_info.map(|bi| bi.ban_tcg) {
-                Some(BanlistStatus::Banned) => format!(r#"<img class="banlist-icon" src="{}/static/forbidden.svg"/>"#, IMG_HOST.as_str()),
+                Some(BanlistStatus::Forbidden) => format!(r#"<img class="banlist-icon" src="{}/static/forbidden.svg"/>"#, IMG_HOST.as_str()),
                 Some(BanlistStatus::Limited) => format!(r#"<img class="banlist-icon" src="{}/static/limited.svg"/>"#, IMG_HOST.as_str()),
                 Some(BanlistStatus::SemiLimited) =>
                     format!(r#"<img class="banlist-icon" src="{}/static/semi_limited.svg"/>"#, IMG_HOST.as_str()),
