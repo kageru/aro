@@ -1,4 +1,4 @@
-#![feature(lazy_cell, try_blocks)]
+#![feature(try_blocks)]
 use actix_web::{http::header, route, web, App, Either, HttpResponse, HttpServer};
 use data::{Card, CardInfo, Set};
 use filter::SearchCard;
