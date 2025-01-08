@@ -361,5 +361,12 @@ mod tests {
             Value::Regex(r) => assert_eq!(r.as_str(), "(?i)(if|when) this card is synchro summoned:"),
             _ => panic!("Should have been a regex"),
         }
+        let RawCardFilter(field, op, value) = parse_raw_filters("name:/(xyz|pendulum|synchro|fusion) dragon/").unwrap().1[0].clone();
+        assert_eq!(field, Field::Name);
+        assert_eq!(op, Operator::Equal);
+        match value {
+            Value::Regex(r) => assert_eq!(r.as_str(), "(?i)(xyz|pendulum|synchro|fusion) dragon"),
+            _ => panic!("Should have been a regex"),
+        }
     }
 }
