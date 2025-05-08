@@ -85,7 +85,11 @@ fn get_field_value(card: &SearchCard, field: Field) -> Option<Value> {
 fn filter_value(op: &Operator, field_value: &Value, query_value: &Value) -> bool {
     match (field_value, query_value) {
         (Value::None, _) => false,
-        (Value::Numerical(field), Value::Numerical(query)) => op.filter_number(Some(*field), *query),
+        (Value::Numerical(field), Value::Numerical(query)) => op.filter_number(*field, *query),
+        // ? ATK/DEF is represented as -1 in the data, but we don’t want atk<1000 to find all monsters with ?.
+        (Value::Numerical(field), Value::String(query)) if matches!(op, Operator::Equal | Operator::NotEqual) && query == "?" => {
+            op.filter_number(*field, -1)
+        }
         (Value::String(field), Value::String(query)) => match op {
             Operator::Equal => field.contains(query),
             Operator::NotEqual => !field.contains(query),
@@ -98,7 +102,6 @@ fn filter_value(op: &Operator, field_value: &Value, query_value: &Value) -> bool
             // greater/less than aren’t supported for string fields.
             _ => false,
         },
-        // Currently only for sets the card was released in.
         (Value::Multiple(field), query @ Value::String(_)) => match op {
             Operator::Equal => field.iter().any(|f| f == query),
             Operator::NotEqual => !field.iter().any(|f| f == query),
@@ -198,5 +201,12 @@ mod tests {
         assert!(price_filter[0](&bls));
         let price_filter_2 = parse_filters("p<350").unwrap().1;
         assert!(price_filter_2[0](&bls), "Should filter by the cheaper version");
+    }
+
+    #[test]
+    fn questionmark_should_be_minus_one() {
+        assert!(filter_value(&Operator::Equal, &Value::Numerical(-1), &Value::String("?".to_owned())));
+        assert!(!filter_value(&Operator::NotEqual, &Value::Numerical(-1), &Value::String("?".to_owned())));
+        assert!(!filter_value(&Operator::LessEqual, &Value::Numerical(1000), &Value::String("?".to_owned())));
     }
 }

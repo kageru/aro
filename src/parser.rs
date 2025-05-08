@@ -187,18 +187,14 @@ pub enum Operator {
 }
 
 impl Operator {
-    pub fn filter_number(&self, a: Option<i32>, b: i32) -> bool {
-        if let Some(a) = a {
-            match self {
-                Self::Equal => a == b,
-                Self::Less => a < b,
-                Self::LessEqual => a <= b,
-                Self::Greater => a > b,
-                Self::GreaterEqual => a >= b,
-                Self::NotEqual => a != b,
-            }
-        } else {
-            self == &Self::NotEqual
+    pub fn filter_number(&self, a: i32, b: i32) -> bool {
+        match self {
+            Self::Equal => a == b,
+            Self::Less => a < b,
+            Self::LessEqual => a <= b,
+            Self::Greater => a > b,
+            Self::GreaterEqual => a >= b,
+            Self::NotEqual => a != b,
         }
     }
 }
