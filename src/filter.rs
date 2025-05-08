@@ -1,10 +1,10 @@
-use time::Date;
-
 use crate::{
     data::{BanlistStatus, Card},
     parser::{Field, Operator, RawCardFilter, Value},
     SETS_BY_NAME,
 };
+use std::iter;
+use time::Date;
 
 /// A struct derived from `Card` that has all fields lowercased for easier search
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -71,7 +71,9 @@ fn get_field_value(card: &SearchCard, field: Field) -> Option<Value> {
         Field::LinkRating => Value::Numerical(card.link_rating?),
         Field::Year => Value::Numerical(card.original_year?),
         Field::Set => Value::Multiple(card.sets.clone().into_iter().map(Value::String).collect()),
-        Field::Type => Value::String(card.r#type.clone()),
+        Field::Type => Value::Multiple(
+            card.card_type.split_whitespace().chain(iter::once(card.r#type.as_str())).map(|s| Value::String(s.to_owned())).collect(),
+        ),
         Field::Attribute => Value::String(card.attribute.clone().unwrap_or_default()),
         Field::Class => Value::String(card.card_type.clone()),
         Field::Name => Value::String(card.name.clone()),
@@ -141,6 +143,17 @@ mod tests {
 
         let filter_level_5 = parse_filters("l=5").unwrap().1;
         assert!(!filter_level_5[0](&lacooda));
+    }
+
+    #[test]
+    fn filter_by_class_and_type_should_both_find_links() {
+        let bls = SearchCard::from(&serde_json::from_str::<Card>(RAW_LINK_MONSTER).unwrap());
+        println!("{}", bls.card_type);
+        println!("{}", bls.r#type);
+        let type_filter = parse_filters("t:link").unwrap().1;
+        assert!(type_filter[0](&bls));
+        let class_filter = parse_filters("c:link").unwrap().1;
+        assert!(class_filter[0](&bls));
     }
 
     #[test]
