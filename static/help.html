@@ -6,7 +6,10 @@ You can filter different characteristics of a card and combine multiple filters 
 <h2>Search fields</h2>
 Currently supported search fields are:
 <ul>
-  <li><code>atk</code> and <code>dEffect”, “XYZ”, etc. but also “Pyro”, “Insect”, “Winged-Beast”, etc. for monsters and “quick-play”, “counter”, or “normal” for Spells/Traps).</li>
+  <li><code>atk</code> and <code>def</code>.
+  <li>The <code>level</code> (or <code>l</code>) of a monster. Note that the search does not distinguish between level and rank, so <a href="/?q=l%3A4"><code>l:4</code></a> will return all monsters that are either level 4 or rank 4.</li>
+  <li>The <code>linkrating</code> (or <code>lr</code>) of a monster.</li>
+  <li>The <code>type</code> (or <code>t</code>) of a card (this is both “Spell”, “Trap”, “Effect”, “XYZ”, etc. but also “Pyro”, “Insect”, “Winged-Beast”, etc. for monsters and “quick-play”, “counter”, or “normal” for Spells/Traps).</li>
   <li>The <code>class</code> (or <code>c</code>) as a legacy alias for the supertype (“Spell”, “Trap”, “Effect”, “Link”, etc.). Since “type” already means something else, I used to have <code>class</code> for super types, but to be consistent with what people might expect coming from Scryfall, that behavior was changed, and <code>class</code> is now redundant. <a href="/?q=c%3Alink"><code>c:link</code></a> and <a href="/?q=t%3Alink"><code>t:link</code></a> will both return all link monsters.</li>
   <li>The <code>attribute</code> (or <code>attr</code> or <code>a</code>) of a card. This is “Light”, “Dark”, “Earth”, etc.</li>
   <li>The <code>text</code> (or <code>effect</code>, <code>eff</code>, <code>e</code>, or <code>o</code>) of a card. This is either the effect or flavor text (for normal monsters). For pendulum cards, this searches in both pendulum and monster effects. The <code>o</code> alias is to help my muscle memory coming from Scryfall.</li>
@@ -18,7 +21,7 @@ Currently supported search fields are:
 Anything not associated with a search field is interpreted as a search in the card name, so <a href="/?q=l%3A4+utopia"><code>l:4 utopia</code></a> will show all level/rank 4 monsters with “Utopia” in their name.<br/>
 If your search contains spaces (e.g. searching for an effect that says “destroy that target”), the text must be quoted like <code>effect:"destroy that target"</code>.
 <br/><br/>
-Note that all fields are case-insensitive, so <code>class:NORMAL</code> is the same as <code>class:Normal</code> or <code>class:normal</code>.
+Note that all fields are case-insensitive, so <code>type:NORMAL</code> is the same as <code>type:Normal</code> or <code>type:normal</code>.
 <br/>
 There is a limit of 300 results for any given search query.
 <br/>
@@ -40,9 +43,9 @@ The following search operators are supported:
 <ul>
   <li>All Fire monsters with exactly 200 DEF: <a href="/?q=a%3Afire+def%3A200"><code>a:fire def:200</code></a></li>
   <li>All “Blue-eyes” fusion monsters except the ones that are level 12: <a href="/?q=c%3Afusion+l%21%3D12+blue-eyes"><code>t:fusion l!=12 blue-eyes</code></a></li>
-  <li>All Synchro monsters that are Dark attribute, level 5 or higher, and have exactly 2200 ATK: <a href="/?q=t%3Asynchro+a%3Adark+l%3E%3D5+atk%3A2200"><code>c:synchro a:dark l>=5 atk:2200</code></a></li>
-  <li>All counter traps that can negate summons: <a href="/?q=t%3Atrap+t%3Acounter+e%3A%22negate+the+summon%22"><code>c:trap t:counter e:"negate the summon"</code></a></li>
-  <li>All effect monsters printed in Legend of Blue-Eyes: <a href="/?q=set%3Alob+t%3Aeffect"><code>set:lob c:effect</code></a></li>
+  <li>All Synchro monsters that are Dark attribute, level 5 or higher, and have exactly 2200 ATK: <a href="/?q=t%3Asynchro+a%3Adark+l%3E%3D5+atk%3A2200"><code>t:synchro a:dark l>=5 atk:2200</code></a></li>
+  <li>All counter traps that can negate summons: <a href="/?q=t%3Atrap+t%3Acounter+e%3A%22negate+the+summon%22"><code>t:trap t:counter e:"negate the summon"</code></a></li>
+  <li>All effect monsters printed in Legend of Blue-Eyes: <a href="/?q=set%3Alob+t%3Aeffect"><code>set:lob t:effect</code></a></li>
   <li>All Zoodiac cards that are currently banned: <a href="/?q=legal%3A0+zoodiac"><code>legal:0 zoodiac</code></a></li>
-  <li>All chaos-type effect monsters that are level 6 or 8: <a href="/?q=a%3Alight%7Cdark+t%3Aeffect+l%3A6%7C8"><code>a:light|dark c:effect l:6|8</code></a></li>
+  <li>All chaos-type effect monsters that are level 6 or 8: <a href="/?q=a%3Alight%7Cdark+t%3Aeffect+l%3A6%7C8"><code>a:light|dark t:effect l:6|8</code></a></li>
 </ul>

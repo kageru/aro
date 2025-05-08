@@ -1,5 +1,8 @@
 use serde::Deserialize;
-use std::fmt::{self, Display, Write};
+use std::{
+    fmt::{self, Display, Write},
+    sync::LazyLock,
+};
 use time::Date;
 
 use crate::{IMG_HOST, SETS_BY_NAME};
@@ -17,7 +20,7 @@ pub struct Card {
     pub name:         String,
     #[serde(rename = "desc")]
     pub text:         String,
-    // Will also be None for ?
+    // Will be -1 for ?
     pub atk:          Option<i32>,
     pub def:          Option<i32>,
     pub attribute:    Option<String>,
@@ -119,16 +122,28 @@ impl Card {
         if self.card_type.contains(&String::from("Monster")) {
             f.write_str(newline)?;
             match (self.atk, self.def) {
-                (Some(atk), Some(def)) => write!(f, "{atk} ATK / {def} DEF")?,
-                (Some(atk), None) if self.link_rating.is_some() => write!(f, "{atk} ATK")?,
-                (None, Some(def)) => write!(f, "? ATK / {def} DEF")?,
-                (Some(atk), None) => write!(f, "{atk} ATK / ? DEF")?,
-                (None, None) => write!(f, "? ATK / ? DEF")?,
+                (Some(atk), Some(def)) => write!(f, "{} ATK / {} DEF", stat_display(atk), stat_display(def))?,
+                (Some(atk), None) if self.link_rating.is_some() => write!(f, "{} ATK", stat_display(atk))?,
+                _ => (),
             }
         }
         Ok(())
     }
 }
+
+fn stat_display(n: i32) -> String {
+    match n {
+        -1 => String::from("?"),
+        _ => n.to_string(),
+    }
+}
+
+static FORBIDDEN_ICON: LazyLock<String> =
+    LazyLock::new(|| format!(r#"<img class="banlist-icon" src="{}/static/forbidden.svg"/>"#, IMG_HOST.as_str()));
+static LIMITED_ICON: LazyLock<String> =
+    LazyLock::new(|| format!(r#"<img class="banlist-icon" src="{}/static/limited.svg"/>"#, IMG_HOST.as_str()));
+static SEMI_LIMITED_ICON: LazyLock<String> =
+    LazyLock::new(|| format!(r#"<img class="banlist-icon" src="{}/static/semi-limited.svg"/>"#, IMG_HOST.as_str()));
 
 impl Display for Card {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -137,12 +152,10 @@ impl Display for Card {
             r#"<h2 class="cardname">{} {}</h2><em>"#,
             &self.name,
             match self.banlist_info.map(|bi| bi.ban_tcg) {
-                Some(BanlistStatus::Forbidden) =>
-                    format!(r#"<img class="banlist-icon" src="{}/static/forbidden.svg"/>"#, IMG_HOST.as_str()),
-                Some(BanlistStatus::Limited) => format!(r#"<img class="banlist-icon" src="{}/static/limited.svg"/>"#, IMG_HOST.as_str()),
-                Some(BanlistStatus::SemiLimited) =>
-                    format!(r#"<img class="banlist-icon" src="{}/static/semi_limited.svg"/>"#, IMG_HOST.as_str()),
-                _ => String::new(),
+                Some(BanlistStatus::Forbidden) => &FORBIDDEN_ICON,
+                Some(BanlistStatus::Limited) => &LIMITED_ICON,
+                Some(BanlistStatus::SemiLimited) => &SEMI_LIMITED_ICON,
+                _ => "",
             }
         )?;
         self.basic_info(f, "<br/>")?;

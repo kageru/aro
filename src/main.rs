@@ -61,7 +61,6 @@ static SETS_BY_NAME: LazyLock<HashMap<String, Set>> = LazyLock::new(|| {
 });
 static PENDULUM_SEPARATOR: LazyLock<Regex> =
     LazyLock::new(|| Regex::new("(\\n-+)?\\n\\[\\s?(Monster Effect|Flavor Text)\\s?\\]\\n?").unwrap());
-
 static IMG_HOST: LazyLock<String> = LazyLock::new(|| std::env::var("IMG_HOST").unwrap_or_else(|_| String::new()));
 
 #[actix_web::main]
