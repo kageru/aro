@@ -1,5 +1,4 @@
-#![feature(try_blocks)]
-use actix_web::{http::header, route, web, App, Either, HttpResponse, HttpServer};
+use actix_web::{http::header, route, web, App, HttpResponse, HttpServer};
 use data::{Card, CardInfo, Set};
 use filter::SearchCard;
 use itertools::Itertools;
@@ -25,9 +24,9 @@ mod parser;
 
 type AnyResult<T> = Result<T, Box<dyn std::error::Error>>;
 
-// The yearly tins have ~250 cards in them.
-// I want to be higher than that so the page is usable as a set list.
-const RESULT_LIMIT: usize = 300;
+// Not 100 because many modern sets have exactly 101 cards (100 + 1 bonus like the 25th anniversary celebrations).
+// I want all of those to fit on one page.
+const PAGE_SIZE: usize = 120;
 
 static CARDS: LazyLock<Vec<Card>> = LazyLock::new(|| {
     let mut cards = serde_json::from_reader::<_, CardInfo>(BufReader::new(File::open("cards.json").expect("cards.json not found")))
@@ -79,6 +78,7 @@ async fn main() -> std::io::Result<()> {
 #[derive(Debug, Deserialize)]
 struct Query {
     q: String,
+    p: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -114,17 +114,11 @@ fn footer() -> String {
 }
 
 #[route("/", method = "GET", method = "HEAD")]
-async fn search(q: Option<Either<web::Query<Query>, web::Form<Query>>>) -> AnyResult<HttpResponse> {
-    let q = match q {
-        Some(Either::Left(web::Query(Query { q }))) => Some(q),
-        Some(Either::Right(web::Form(Query { q }))) => Some(q),
-        None => None,
-    }
-    .filter(|s| !s.is_empty());
+async fn search(q: Option<web::Query<Query>>) -> AnyResult<HttpResponse> {
     let mut res = String::with_capacity(10_000);
     let data = match q {
-        Some(q) => compute_results(q)?,
-        None => TargetPage::Data(PageData {
+        Some(web::Query(Query { q, p })) if !q.is_empty() => compute_results(q, p.unwrap_or(0))?,
+        _ => TargetPage::Data(PageData {
             title:       NAME.to_owned(),
             description: "Enter a query above to search".to_owned(),
             query:       None,
@@ -199,7 +193,7 @@ fn add_searchbox(res: &mut String, query: &Option<String>) -> std::fmt::Result {
     )
 }
 
-fn compute_results(raw_query: String) -> AnyResult<TargetPage> {
+fn compute_results(raw_query: String, page: usize) -> AnyResult<TargetPage> {
     let mut body = String::with_capacity(10_000);
     let (raw_filters, query) = match parser::parse_filters(raw_query.trim()) {
         Ok(q) => q,
@@ -218,7 +212,8 @@ fn compute_results(raw_query: String) -> AnyResult<TargetPage> {
         .iter()
         .filter(|card| query.iter().all(|q| q(card)))
         .map(|c| CARDS_BY_ID.get(&c.id).unwrap())
-        .take(RESULT_LIMIT)
+        .skip(page * PAGE_SIZE)
+        .take(PAGE_SIZE)
         .collect();
     let readable_query = format!("Showing {} results where {}", matches.len(), raw_filters.iter().map(|f| f.to_string()).join(" and "),);
     write!(body, "<span class=\"meta\">{readable_query} (took {:?})</span>", now.elapsed())?;
@@ -229,13 +224,14 @@ fn compute_results(raw_query: String) -> AnyResult<TargetPage> {
             body,
             title: format!("No results - {NAME}"),
         })),
-        [card] => Ok(TargetPage::Redirect(format!("/card/{}", card.id))),
+        // Don’t want the `>>` button to redirect to a single card view, even if there is only one result left.
+        [card] if page == 0 => Ok(TargetPage::Redirect(format!("/card/{}", card.id))),
         ref cards => {
             body.push_str("<div style=\"display: flex; flex-wrap: wrap;\">");
             for card in cards {
                 write!(
                     body,
-                    r#"<a class="cardresult" href="/card/{}"><img alt="Card Image: {}" src="{}/static/thumb/{}.jpg" class="thumb"/>{card}</a>"#,
+                    r#"<a class="cardresult hoverable" href="/card/{}"><img alt="Card Image: {}" src="{}/static/thumb/{}.jpg" class="thumb"/>{card}</a>"#,
                     card.id,
                     card.name,
                     IMG_HOST.as_str(),
@@ -243,6 +239,20 @@ fn compute_results(raw_query: String) -> AnyResult<TargetPage> {
                 )?;
             }
             body.push_str("</div>");
+            // It’s possible that we’ve exactly reached the end of the results and the next page is empty.
+            // No simple fix comes to mind. Maybe take() 1 result more than we show and check that way?
+            let has_next = cards.len() == PAGE_SIZE;
+            let has_prev = page > 0;
+            if has_next || has_prev {
+                body.push_str("<p style=\"font-size: 160%; display: flex;\">");
+                if has_prev {
+                    write!(body, "<a class=\"hoverable pagearrow\" href=\"/?q={raw_query}&p={}\">&lt;&lt;</a>", page.saturating_sub(1))?;
+                }
+                if has_next {
+                    write!(body, "<a class=\"hoverable pagearrow\" href=\"/?q={raw_query}&p={}\">&gt;&gt;</a>", page + 1)?;
+                }
+                body.push_str("</p>");
+            }
             Ok(TargetPage::Data(PageData {
                 description: readable_query,
                 query: Some(raw_query),

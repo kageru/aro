@@ -88,6 +88,7 @@ h2 {
   width: 15pt;
   vertical-align: top;
 }
+
 /* 
  * This is a big <a> element that looks and behaves more like a div
  * because we can’t put a div inside an a.
@@ -101,9 +102,7 @@ h2 {
   text-decoration: none;
   color: var(--fg);
 }
-.cardresult:hover {
-  background-color: var(--bg);
-}
+
 .cardname {
   color: var(--hl);
   text-decoration: underline;
@@ -128,4 +127,15 @@ h2 {
   z-index: 2;
   padding: 1em;
   border-radius: 1em;
+}
+
+.hoverable:hover {
+  background-color: var(--bg);
+}
+
+.pagearrow {
+  padding: 1em 0;
+  text-decoration: none;
+  text-align: center;
+  flex-grow: 1;
 }
