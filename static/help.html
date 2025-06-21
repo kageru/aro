@@ -18,25 +18,21 @@ Currently supported search fields are:
   <li>The <code>copies</code> (or <code>legal</code>) you’re allowed to play according to the current TCG banlist.</li>
   <li>The <code>price</code> (or <code>p</code>) of the cheapest version of the card <em>in cents</em>. This will use tcgplayer or cardmarket, whichever is lower. Results can be off because of OCG cards on the market.</li>
 </ul>
-Anything not associated with a search field is interpreted as a search in the card name, so <a href="/?q=l%3A4+utopia"><code>l:4 utopia</code></a> will show all level/rank 4 monsters with “Utopia” in their name.<br/>
-If your search contains spaces (e.g. searching for an effect that says “destroy that target”), the text must be quoted like <code>effect:"destroy that target"</code>.
-<br/><br/>
-Note that all fields are case-insensitive, so <code>type:NORMAL</code> is the same as <code>type:Normal</code> or <code>type:normal</code>.
-<br/>
-There is a limit of 300 results for any given search query.
-<br/>
+<p>It is possible to filter for multiple values at once, e.g. <code>level:3|6|9</code> to find all cards that are level 3, 6, or 9.</p>
+<p>Searching by regex is supported. Simply put the search string in slashes, i.e. <a href="/?q=o%3A%2Fdraw+%5Cd%2B+card%2F"><code>o:/draw \d+ card/</code></a>. No regex flags can be passed, but i (case-insensitive) is enabled by default.</p>
+<p>Anything not associated with a search field is interpreted as a search in the card name, so <a href="/?q=l%3A4+utopia"><code>l:4 utopia</code></a> will show all level/rank 4 monsters with “Utopia” in their name. <code>name:</code> can be used to explicitly search for names, which is necessary when searching by Regex.</p>
+<p>If your search contains spaces (e.g. searching for an effect that says “destroy that target”), the text must be quoted like <code>effect:"destroy that target"</code>.</p>
+<p>Note that all fields are case-insensitive, so <code>type:NORMAL</code> is the same as <code>type:Normal</code> or <code>type:normal</code>.</p>
 <br/>
 
 <h2>Search operators</h2>
 The following search operators are supported:
 <ul>
-  <li>Equality (<code>:</code>, <code>=</code>, or <code>==</code>) checks if the value is equal to your search. For text fields, this checks if your search is contained in the field, so <a href="/?q=effect%3Abanish"><code>effect:banish</code></a> will show all cards that have the word “banish” anywhere in their text.</li>
+  <li>Equality (<code>:</code>, <code>=</code>, or <code>==</code>) checks if the value is equal to your search. For the effect, this checks if your search is contained in the field, so <a href="/?q=effect%3Abanish"><code>effect:banish</code></a> will show all cards that have the word “banish” anywhere in their text.</li>
   <li>Inequality (<code>!=</code>) checks if the value is not equal to your search. For text fields, this return cards that do not contain the word you searched.</li>
   <li>Comparisons (<code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code>) check if the value is less than, greater than, less than or equal, and greater than or equal to your search. <a href="/?q=atk%3E%3D4000"><code>atk&gt;=4000</code></a> will show all cards with an ATK of at least 4000. These operators do not work for text fields.</li>
 </ul>
 <br/>
-<p>It is possible to filter for multiple values at once, e.g. <code>level:3|6|9</code> to find all cards that are level 3, 6, or 9.</p>
-<p>Searching by regex is supported. Simply put the search string in slashes, i.e. <a href="/?q=o%3A%2Fdraw+%5Cd%2B+card%2F"><code>o:/draw \d+ card/</code></a>. No regex flags can be passed, but i (case-insensitive) is enabled by default.</p>
 <br/>
 
 <h2>Examples</h2>

@@ -102,7 +102,7 @@ static VIEW_COUNT: AtomicUsize = AtomicUsize::new(0);
 fn footer() -> String {
     format!(
         r#"<div id="bottom">
-<span style="color: #bbb">{}</span>
+<span class="viewcount">{}</span>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="/">Home</a>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;

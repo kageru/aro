@@ -4,6 +4,26 @@
   --bg2: #101012;
   --fg: #ececef;
   --fg-dim: #ddddde;
+  --fg-dimmest: #bbb;
+  --bg-code: #2a2a2a;
+  --shadow: black;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --hl: #196ffa;
+    --bg: #ddd;
+    --bg2: #f2f2f2;
+    --fg: #111;
+    --fg-dim: #222;
+    --fg-dimmest: #444;
+    --bg-code: #d3d3d3;
+    --shadow: #555;
+  }
+}
+
+.viewcount {
+  color: var(--fg-dimmest);
 }
 
 html {
@@ -25,7 +45,7 @@ body {
 
 code {
   font-family: "Hack", "Fira Code", "Courier New", monospace;
-  background-color: #2a2a2a;
+  background-color: var(--bg-code);
 }
 
 .meta {
@@ -75,14 +95,16 @@ h2 {
   max-width: 30%;
   float: right;
   margin: 0 0 0.8em 1.2em;
-  box-shadow: 10px 10px var(--bg);
+  box-shadow: 8px 8px 5px var(--shadow);
 }
+
 .fullimage {
   width: 30%;
   float: right;
   margin: 0 0 1em 1.5em;
-  box-shadow: 15px 15px var(--bg);
+  box-shadow: 10px 10px 10px var(--shadow);
 }
+
 .banlist-icon {
   height: 15pt;
   width: 15pt;
@@ -111,7 +133,7 @@ h2 {
 @media screen and (max-width: 680px) {
   body {
     width: 95%;
-    padding: 3%;
+    padding: 3% 3% 4em 3%;
   }
   #bottom {
     bottom: 1em;
