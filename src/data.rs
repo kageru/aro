@@ -105,15 +105,14 @@ impl Card {
     }
 
     fn basic_info<W: Write>(&self, f: &mut W, newline: &str) -> fmt::Result {
-        if let Some(level) = self.level {
-            if self.card_type.contains("XYZ") {
-                f.write_str("Rank ")?;
-            } else {
-                f.write_str("Level ")?;
-            }
-            write!(f, "{level} ")?;
-        } else if let Some(lr) = self.link_rating {
+        if let Some(lr) = self.link_rating {
             write!(f, "Link {lr} ")?;
+        } else if let Some(level) = self.level {
+            if self.card_type.contains("XYZ") {
+                write!(f, "Rank {level} ")?;
+            } else {
+                write!(f, "Level {level} ")?;
+            }
         }
         if let Some(attr) = &self.attribute {
             write!(f, "{attr}/")?;
