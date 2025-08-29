@@ -243,13 +243,14 @@ fn compute_results(raw_query: String, page: usize) -> AnyResult<TargetPage> {
             // No simple fix comes to mind. Maybe take() 1 result more than we show and check that way?
             let has_next = cards.len() == PAGE_SIZE;
             let has_prev = page > 0;
+            let url_query = urlencoding::encode(&raw_query);
             if has_next || has_prev {
                 body.push_str("<p style=\"font-size: 160%; display: flex;\">");
                 if has_prev {
-                    write!(body, "<a class=\"hoverable pagearrow\" href=\"/?q={raw_query}&p={}\">&lt;&lt;</a>", page.saturating_sub(1))?;
+                    write!(body, "<a class=\"hoverable pagearrow\" href=\"/?q={url_query}&p={}\">&lt;&lt;</a>", page.saturating_sub(1))?;
                 }
                 if has_next {
-                    write!(body, "<a class=\"hoverable pagearrow\" href=\"/?q={raw_query}&p={}\">&gt;&gt;</a>", page + 1)?;
+                    write!(body, "<a class=\"hoverable pagearrow\" href=\"/?q={url_query}&p={}\">&gt;&gt;</a>", page + 1)?;
                 }
                 body.push_str("</p>");
             }
