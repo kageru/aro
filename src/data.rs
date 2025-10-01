@@ -171,7 +171,11 @@ impl Display for Card {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            r#"<h2><span class="cardname">{}</span> {} {}</h2><em>"#,
+            r#"<h2><span class="cardname" title="{}">{}</span> {} {}</h2><em>"#,
+            match &self.misc_info[0].beta_name {
+                Some(name) => format!("Previously “{name}”"),
+                None => String::new(),
+            },
             &self.name,
             match self.banlist_info.map(|bi| bi.ban_tcg) {
                 Some(BanlistStatus::Forbidden) => &FORBIDDEN_ICON,

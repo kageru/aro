@@ -20,7 +20,8 @@ Currently supported search fields are:
 </ul>
 <p>It is possible to filter for multiple values at once, e.g. <code>level:3|6|9</code> to find all cards that are level 3, 6, or 9.</p>
 <p>Searching by regex is supported. Simply put the search string in slashes, i.e. <a href="/?q=o%3A%2Fdraw+%5Cd%2B+card%2F"><code>o:/draw \d+ card/</code></a>. No regex flags can be passed, but i (case-insensitive) is enabled by default.</p>
-<p>Anything not associated with a search field is interpreted as a search in the card name, so <a href="/?q=l%3A4+utopia"><code>l:4 utopia</code></a> will show all level/rank 4 monsters with “Utopia” in their name. <code>name:</code> can be used to explicitly search for names, which is necessary when searching by Regex.</p>
+<p>Anything not associated with a search field is interpreted as a search in the card name, so <a href="/?q=l%3A4+utopia"><code>l:4 utopia</code></a> will show all level/rank 4 monsters with “Utopia” in their name. <code>name:</code> can be used to explicitly search for names, which is necessary when searching by Regex.<br/>
+Old/unofficially translated names are also supported, so <a href="/?q=eidolon"><code>eidolon</code></a> will show Invoked cards, Dracotail and Dragon Tail are interchangeable, etc.</p>
 <p>If your search contains spaces (e.g. searching for an effect that says “destroy that target”), the text must be quoted like <code>effect:"destroy that target"</code>.</p>
 <p>Note that all fields are case-insensitive, so <code>type:NORMAL</code> is the same as <code>type:Normal</code> or <code>type:normal</code>.</p>
 <br/>
@@ -44,4 +45,5 @@ The following search operators are supported:
   <li>All effect monsters printed in Legend of Blue-Eyes: <a href="/?q=set%3Alob+t%3Aeffect"><code>set:lob t:effect</code></a></li>
   <li>All Zoodiac cards that are currently banned: <a href="/?q=legal%3A0+zoodiac"><code>legal:0 zoodiac</code></a></li>
   <li>All chaos-type effect monsters that are level 6 or 8: <a href="/?q=a%3Alight%7Cdark+t%3Aeffect+l%3A6%7C8"><code>a:light|dark t:effect l:6|8</code></a></li>
+  <li>All non-link cards that are currently banned and cost less than 50 points in Genesys: <a href="/?q=legal%3A0+g%3C50+t%21%3Dlink"><code>legal:0 g&lt;50 t!=link</code></a></li>
 </ul>
