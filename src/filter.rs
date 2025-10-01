@@ -71,6 +71,7 @@ fn get_field_value(card: &SearchCard, field: Field) -> Option<Value> {
         Field::Legal => Value::Numerical(card.legal_copies),
         Field::Level => Value::Numerical(card.level?),
         Field::LinkRating => Value::Numerical(card.link_rating?),
+        Field::Genesys => Value::Numerical(card.genesys_points),
         Field::Year => Value::Numerical(card.original_year?),
         Field::Set => Value::Multiple(card.sets.clone().into_iter().map(Value::String).collect()),
         Field::Type => Value::Multiple(card.typeline.clone().into_iter().map(Value::String).collect()),
