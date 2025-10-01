@@ -106,9 +106,20 @@ h2 {
 }
 
 .banlist-icon {
-  height: 15pt;
-  width: 15pt;
+  width: 17pt;
   vertical-align: top;
+}
+
+/* A number surrounded by a circle */
+.genesys {
+    font-size: 10pt;
+    display: inline-block;
+    width: 13pt;
+    height: 13pt;
+    line-height: 170%;
+    text-align: center;
+    border-radius: 50%;
+    border: var(--hl) 1.5pt solid;
 }
 
 /* 

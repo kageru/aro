@@ -1,4 +1,4 @@
-use actix_web::{http::header, route, web, App, HttpResponse, HttpServer};
+use actix_web::{App, HttpResponse, HttpServer, http::header, route, web};
 use data::{Card, CardInfo, Set};
 use filter::SearchCard;
 use itertools::Itertools;
@@ -11,8 +11,8 @@ use std::{
     io::BufReader,
     net::Ipv4Addr,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         LazyLock,
+        atomic::{AtomicUsize, Ordering},
     },
     time::Instant,
 };

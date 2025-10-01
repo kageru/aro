@@ -3,16 +3,16 @@ use std::{
     str::FromStr,
 };
 
-use crate::filter::{build_filter, CardFilter};
+use crate::filter::{CardFilter, build_filter};
 use itertools::Itertools;
 use nom::{
+    IResult,
     branch::alt,
     bytes::complete::{take_until1, take_while, take_while_m_n},
     character::complete::{char, multispace0},
     combinator::{complete, map, map_res, recognize, rest, verify},
     multi::{many_m_n, separated_list1},
     sequence::{delimited, preceded, tuple},
-    IResult,
 };
 use regex::Regex;
 
@@ -52,11 +52,7 @@ fn word_non_empty(input: &str) -> IResult<&str, &str> {
 }
 
 fn sanitize(query: &str) -> Result<String, String> {
-    if query.is_empty() {
-        Err("Query must not be empty".to_owned())
-    } else {
-        Ok(query.to_lowercase())
-    }
+    if query.is_empty() { Err("Query must not be empty".to_owned()) } else { Ok(query.to_lowercase()) }
 }
 
 fn fallback_filter(query: &str) -> Result<RawCardFilter, String> {
@@ -129,7 +125,6 @@ pub enum Field {
     Set = 10,
     Type = 12,
     Attribute = 14,
-    Class = 16,
     Name = 18,
     Text = 20,
 }
@@ -139,7 +134,6 @@ impl Display for Field {
         f.write_str(match self {
             Self::Text => "text",
             Self::Name => "name",
-            Self::Class => "card type",
             Self::Attribute => "attribute",
             Self::Type => "type",
             Self::Level => "level/rank",
@@ -163,7 +157,6 @@ impl FromStr for Field {
             "level" | "l" => Self::Level,
             "type" | "t" => Self::Type,
             "attribute" | "attr" | "a" => Self::Attribute,
-            "c" | "class" => Self::Class,
             "o" | "eff" | "text" | "effect" | "e" => Self::Text,
             "lr" | "linkrating" => Self::LinkRating,
             "name" => Self::Name,
@@ -242,6 +235,7 @@ pub enum Value {
     Regex(Regex),
     Numerical(i32),
     Multiple(Vec<Value>),
+    MultiplePartial(Vec<String>),
     #[default]
     None,
 }
@@ -253,6 +247,7 @@ impl PartialEq for Value {
             (Value::String(s1), Value::String(s2)) => s1 == s2,
             (Value::Numerical(a), Value::Numerical(b)) => a == b,
             (Value::Multiple(v1), Value::Multiple(v2)) => v1 == v2,
+            (Value::MultiplePartial(v1), Value::MultiplePartial(v2)) => v1 == v2,
             (Value::Regex(r1), Value::Regex(r2)) => r1.as_str() == r2.as_str(),
             (Value::None, Value::None) => true,
             _ => false,
@@ -277,6 +272,9 @@ impl Display for Value {
             Self::Multiple(m) => {
                 write!(f, "one of [{}]", m.iter().map(Value::to_string).join(", "))
             }
+            Self::MultiplePartial(m) => {
+                write!(f, "includes one of [{}]", m.join(", "))
+            }
             Self::None => f.write_str("none"),
         }
     }
@@ -294,7 +292,6 @@ mod tests {
     #[test_case("Necrovalley" => Ok(("", RawCardFilter(Field::Name, Operator::Equal, Value::String("necrovalley".into())))))]
     #[test_case("l=10" => Ok(("", RawCardFilter(Field::Level, Operator::Equal, Value::Numerical(10)))))]
     #[test_case("Ib" => Ok(("", RawCardFilter(Field::Name, Operator::Equal, Value::String("ib".to_owned())))))]
-    #[test_case("c!=synchro" => Ok(("", RawCardFilter(Field::Class, Operator::NotEqual, Value::String("synchro".to_owned())))))]
     #[test_case("p<150" => Ok(("", RawCardFilter(Field::Price, Operator::Less, Value::Numerical(150)))))]
     fn successful_parsing_test(input: &str) -> IResult<&str, RawCardFilter> {
         parse_raw_filter(input)
@@ -318,12 +315,12 @@ mod tests {
         );
 
         assert_eq!(
-            parse_raw_filters(r#"t:counter c:trap o:"negate the summon""#),
+            parse_raw_filters(r#"t:counter t:trap o:"negate the summon""#),
             Ok((
                 "",
                 vec![
                     RawCardFilter(Field::Type, Operator::Equal, Value::String("counter".into())),
-                    RawCardFilter(Field::Class, Operator::Equal, Value::String("trap".into())),
+                    RawCardFilter(Field::Type, Operator::Equal, Value::String("trap".into())),
                     RawCardFilter(Field::Text, Operator::Equal, Value::String("negate the summon".into())),
                 ]
             ))

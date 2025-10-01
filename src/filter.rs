@@ -1,55 +1,57 @@
 use crate::{
     data::{BanlistStatus, Card},
     parser::{Field, Operator, RawCardFilter, Value},
-    SETS_BY_NAME,
 };
-use std::iter;
+use itertools::Itertools;
 use time::Date;
 
 /// A struct derived from `Card` that has all fields lowercased for easier search
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct SearchCard {
-    pub id:        usize,
-    card_type:     String,
-    name:          String,
-    text:          String,
-    atk:           Option<i32>,
-    def:           Option<i32>,
-    attribute:     Option<String>,
-    r#type:        String,
+    pub id:         usize,
+    typeline:       Vec<String>,
+    names:          Vec<String>,
+    text:           String,
+    atk:            Option<i32>,
+    def:            Option<i32>,
+    attribute:      Option<String>,
     // also includes rank
-    level:         Option<i32>,
-    link_rating:   Option<i32>,
-    link_arrows:   Option<Vec<String>>,
-    sets:          Vec<String>,
-    original_year: Option<i32>,
-    legal_copies:  i32,
-    price:         Option<i32>,
+    level:          Option<i32>,
+    link_rating:    Option<i32>,
+    link_arrows:    Option<Vec<String>>,
+    sets:           Vec<String>,
+    original_year:  Option<i32>,
+    legal_copies:   i32,
+    genesys_points: i32,
+    price:          Option<i32>,
 }
 
 impl From<&Card> for SearchCard {
     fn from(card: &Card) -> Self {
         Self {
-            id:            card.id,
-            card_type:     card.card_type.to_lowercase(),
-            name:          card.name.to_lowercase(),
-            text:          card.text.to_lowercase(),
-            atk:           card.atk,
-            def:           card.def,
-            attribute:     card.attribute.as_ref().map(|s| s.to_lowercase()),
-            r#type:        card.r#type.to_lowercase(),
-            level:         card.level,
-            link_rating:   card.link_rating,
-            link_arrows:   card.link_arrows.as_ref().map(|arrows| arrows.iter().map(|a| a.to_lowercase()).collect()),
-            sets:          card.card_sets.iter().filter_map(|s| s.set_code.split('-').next().map(str::to_lowercase)).collect(),
-            original_year: card
-                .card_sets
+            id:             card.id,
+            typeline:       match card.typeline.as_ref() {
+                Some(typeline) => typeline.iter().map(|t| t.to_lowercase()).collect(),
+                None => card.type_fallback.to_lowercase().split(' ').map(str::to_owned).collect(),
+            },
+            names:          vec![Some(&card.name), card.misc_info[0].treated_as.as_ref(), card.misc_info[0].beta_name.as_ref()]
                 .iter()
-                .filter_map(|s| SETS_BY_NAME.get(&s.set_name.to_lowercase()).and_then(|s| s.tcg_date))
-                .map(Date::year)
-                .min(),
-            legal_copies:  card.banlist_info.map(|bi| bi.ban_tcg).unwrap_or(BanlistStatus::Unlimited) as i32,
-            price:         card
+                .flatten()
+                .map(|n| n.to_lowercase())
+                .dedup()
+                .collect(),
+            text:           card.text.to_lowercase(),
+            atk:            card.atk,
+            def:            card.def,
+            attribute:      card.attribute.as_ref().map(|s| s.to_lowercase()),
+            level:          card.level,
+            link_rating:    card.link_rating,
+            link_arrows:    card.link_arrows.as_ref().map(|arrows| arrows.iter().map(|a| a.to_lowercase()).collect()),
+            sets:           card.card_sets.iter().filter_map(|s| s.set_code.split('-').next().map(str::to_lowercase)).collect(),
+            original_year:  card.misc_info[0].tcg_date.map(Date::year),
+            legal_copies:   card.banlist_info.map(|bi| bi.ban_tcg).unwrap_or(BanlistStatus::Unlimited) as i32,
+            genesys_points: card.misc_info[0].genesys_points,
+            price:          card
                 .card_prices
                 .iter()
                 .flat_map(|p| vec![p.cardmarket_price.parse::<f32>().ok(), p.tcgplayer_price.parse().ok()])
@@ -71,12 +73,9 @@ fn get_field_value(card: &SearchCard, field: Field) -> Option<Value> {
         Field::LinkRating => Value::Numerical(card.link_rating?),
         Field::Year => Value::Numerical(card.original_year?),
         Field::Set => Value::Multiple(card.sets.clone().into_iter().map(Value::String).collect()),
-        Field::Type => Value::Multiple(
-            card.card_type.split_whitespace().chain(iter::once(card.r#type.as_str())).map(|s| Value::String(s.to_owned())).collect(),
-        ),
+        Field::Type => Value::Multiple(card.typeline.clone().into_iter().map(Value::String).collect()),
         Field::Attribute => Value::String(card.attribute.clone().unwrap_or_default()),
-        Field::Class => Value::String(card.card_type.clone()),
-        Field::Name => Value::String(card.name.clone()),
+        Field::Name => Value::MultiplePartial(card.names.clone()),
         Field::Text => Value::String(card.text.clone()),
         Field::Price => Value::Numerical(card.price?),
     })
@@ -107,6 +106,11 @@ fn filter_value(op: &Operator, field_value: &Value, query_value: &Value) -> bool
             Operator::NotEqual => !field.iter().any(|f| f == query),
             _ => false,
         },
+        (Value::MultiplePartial(field), Value::String(query)) => match op {
+            Operator::Equal => field.iter().any(|f| f.contains(query)),
+            Operator::NotEqual => !field.iter().any(|f| f.contains(query)),
+            _ => false,
+        },
         _ => false,
     }
 }
@@ -128,7 +132,7 @@ pub fn build_filter(RawCardFilter(field, op, value): RawCardFilter) -> Result<Ca
 mod tests {
     use super::*;
     use crate::{
-        data::tests::{RAW_LINK_MONSTER, RAW_MONSTER},
+        data::tests::{RAW_LINK_MONSTER, RAW_MONSTER, RAW_SPELL},
         parser::parse_filters,
     };
 
@@ -149,14 +153,23 @@ mod tests {
     }
 
     #[test]
-    fn filter_by_class_and_type_should_both_find_links() {
+    fn filter_by_type_should_find_all_types() {
         let bls = SearchCard::from(&serde_json::from_str::<Card>(RAW_LINK_MONSTER).unwrap());
-        println!("{}", bls.card_type);
-        println!("{}", bls.r#type);
-        let type_filter = parse_filters("t:link").unwrap().1;
-        assert!(type_filter[0](&bls));
-        let class_filter = parse_filters("c:link").unwrap().1;
-        assert!(class_filter[0](&bls));
+        let link_filter = parse_filters("t:link").unwrap().1;
+        assert!(link_filter[0](&bls));
+        let warrior_filter = parse_filters("t:warrior").unwrap().1;
+        assert!(warrior_filter[0](&bls));
+        let effect_filter = parse_filters("t:effect").unwrap().1;
+        assert!(effect_filter[0](&bls));
+    }
+
+    #[test]
+    fn filter_by_type_should_use_fallback_if_necessary() {
+        let coffin = SearchCard::from(&serde_json::from_str::<Card>(RAW_SPELL).unwrap());
+        let normal_filter = parse_filters("t:normal").unwrap().1;
+        assert!(normal_filter[0](&coffin));
+        let spell_filter = parse_filters("t:spell").unwrap().1;
+        assert!(spell_filter[0](&coffin));
     }
 
     #[test]
@@ -196,7 +209,7 @@ mod tests {
     fn price_filter_test() {
         let lacooda = SearchCard::from(&serde_json::from_str::<Card>(RAW_MONSTER).unwrap());
         let bls = SearchCard::from(&serde_json::from_str::<Card>(RAW_LINK_MONSTER).unwrap());
-        let price_filter = parse_filters("p>300").unwrap().1;
+        let price_filter = parse_filters("p>50").unwrap().1;
         assert!(!price_filter[0](&lacooda));
         assert!(price_filter[0](&bls));
         let price_filter_2 = parse_filters("p<350").unwrap().1;
