@@ -113,13 +113,16 @@ h2 {
 /* A number surrounded by a circle */
 .genesys {
     font-size: 10pt;
-    display: inline-block;
+    display: inline-flex;
     width: 13pt;
     height: 13pt;
-    line-height: 170%;
-    text-align: center;
+    line-height: 13pt;
+    justify-content: center;
+    align-items: flex-end;
+    vertical-align: middle;
     border-radius: 50%;
     border: var(--hl) 1.5pt solid;
+    overflow: hidden;
 }
 
 /* 
