@@ -2,6 +2,7 @@ use actix_web::{App, HttpResponse, HttpServer, http::header, route, web};
 use data::{Card, CardInfo, Set};
 use filter::SearchCard;
 use itertools::Itertools;
+use parser::Field;
 use regex::{Captures, Regex};
 use serde::Deserialize;
 use std::{
@@ -196,7 +197,12 @@ fn add_searchbox(res: &mut String, query: &Option<String>) -> std::fmt::Result {
 fn compute_results(raw_query: String, page: usize) -> AnyResult<TargetPage> {
     let mut body = String::with_capacity(10_000);
     let (raw_filters, query) = match parser::parse_filters(raw_query.trim()) {
-        Ok(q) => q,
+        Ok((raw, mut parsed)) => {
+            if raw.iter().any(|r| r.0 == Field::Genesys) {
+                parsed.push(Box::new(SearchCard::genesys_legal));
+            }
+            (raw, parsed)
+        }
         Err(e) => {
             let s = format!("Could not parse query: {e:?}");
             return Ok(TargetPage::Data(PageData {

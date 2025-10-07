@@ -11,7 +11,7 @@ Currently supported search fields are:
   <li>The <code>linkrating</code> (or <code>lr</code>) of a monster.</li>
   <li>The <code>type</code> (or <code>t</code>) of a card (this is both “Spell”, “Trap”, “Effect”, “XYZ”, etc. but also “Pyro”, “Insect”, “Winged-Beast”, etc. for monsters and “quick-play”, “counter”, or “normal” for Spells/Traps).</li>
   <li>The <code>attribute</code> (or <code>attr</code> or <code>a</code>) of a card. This is “Light”, “Dark”, “Earth”, etc.</li>
-  <li>The <code>genesys</code> points (or <code>g</code> or <code>gen</code>) of a card.</li>
+  <li>The <code>genesys</code> points (or <code>g</code> or <code>gen</code>) of a card. When filtering by Genesys points, Link and Pendulum monsters are excluded from the results.</li>
   <li>The <code>text</code> (or <code>effect</code>, <code>eff</code>, <code>e</code>, or <code>o</code>) of a card. This is either the effect or flavor text (for normal monsters). For pendulum cards, this searches in both pendulum and monster effects. The <code>o</code> alias is to help my muscle memory coming from Scryfall.</li>
   <li>The <code>set</code> (or <code>s</code>) a card was printed in. This considers all printings, not just the original, and uses the set code (e.g. <code>ioc</code> for Invasion of Chaos or <code>pote</code> for Power of the Elements).</li>
   <li>The <code>year</code> (or <code>y</code>) a card was <em>first</em> printed in the TCG.
@@ -45,5 +45,5 @@ The following search operators are supported:
   <li>All effect monsters printed in Legend of Blue-Eyes: <a href="/?q=set%3Alob+t%3Aeffect"><code>set:lob t:effect</code></a></li>
   <li>All Zoodiac cards that are currently banned: <a href="/?q=legal%3A0+zoodiac"><code>legal:0 zoodiac</code></a></li>
   <li>All chaos-type effect monsters that are level 6 or 8: <a href="/?q=a%3Alight%7Cdark+t%3Aeffect+l%3A6%7C8"><code>a:light|dark t:effect l:6|8</code></a></li>
-  <li>All non-link cards that are currently banned and cost less than 50 points in Genesys: <a href="/?q=legal%3A0+g%3C50+t%21%3Dlink"><code>legal:0 g&lt;50 t!=link</code></a></li>
+  <li>All cards that are currently banned and cost less than 50 points in Genesys (Links and Pends are ommitted automatically): <a href="/?q=legal%3A0+g%3C50"><code>legal:0 g&lt;50</code></a></li>
 </ul>

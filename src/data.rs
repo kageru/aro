@@ -350,7 +350,12 @@ pub mod tests {
                     CardSet { set_name: "Metal Raiders".to_owned(), set_code: "MRD-059".to_owned(), set_rarity: "Common".to_owned() }
                 ],
                 card_prices: vec![CardPrice { tcgplayer_price: "0.10".to_owned(), cardmarket_price: "0.06".to_owned() }],
-                misc_info: vec![MiscInfo { beta_name: None, treated_as: None, tcg_date: Some(Date::from_calendar_date(2002, time::Month::June, 26).unwrap()), genesys_points: 0 }],
+                misc_info: vec![MiscInfo {
+                    beta_name:      None,
+                    treated_as:     None,
+                    tcg_date:       Some(Date::from_calendar_date(2002, time::Month::June, 26).unwrap()),
+                    genesys_points: 0,
+                }],
                 ..Default::default()
             }
         )

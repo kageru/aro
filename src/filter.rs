@@ -26,6 +26,12 @@ pub struct SearchCard {
     price:          Option<i32>,
 }
 
+impl SearchCard {
+    pub fn genesys_legal(&self) -> bool {
+        !self.typeline.iter().any(|t| t.eq_ignore_ascii_case("link") || t.eq_ignore_ascii_case("pendulum"))
+    }
+}
+
 impl From<&Card> for SearchCard {
     fn from(card: &Card) -> Self {
         Self {
