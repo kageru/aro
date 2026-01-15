@@ -94,7 +94,7 @@ fn values(input: &str) -> IResult<&str, Value> {
 
 fn parse_values(input: &str) -> Result<Value, String> {
     Ok(if let Some(regex) = input.strip_prefix('/').and_then(|i| i.strip_suffix('/')) {
-        Value::Regex(Regex::new(&format!("(?i){regex}")).map_err(|_| format!("Invalid regex: {regex}"))?)
+        Value::Regex(Regex::new(&regex.to_lowercase()).map_err(|_| format!("Invalid regex: {regex}"))?)
     } else {
         let values = input.split('|').map(parse_single_value).collect::<Result<Vec<Value>, String>>()?;
         match values.as_slice() {
@@ -350,11 +350,11 @@ mod tests {
 
     #[test]
     fn regex_should_have_precedence_over_split() {
-        let RawCardFilter(field, op, value) = parse_raw_filters("o:/(if|when) this card is synchro summoned:/").unwrap().1[0].clone();
+        let RawCardFilter(field, op, value) = parse_raw_filters("o:/(if|when) this card is Synchro Summoned:/").unwrap().1[0].clone();
         assert_eq!(field, Field::Text);
         assert_eq!(op, Operator::Equal);
         match value {
-            Value::Regex(r) => assert_eq!(r.as_str(), "(?i)(if|when) this card is synchro summoned:"),
+            Value::Regex(r) => assert_eq!(r.as_str(), "(if|when) this card is synchro summoned:"),
             _ => panic!("Should have been a regex"),
         }
         let RawCardFilter(field, op, value) = parse_raw_filters("name:/(xyz|pendulum|synchro|fusion) dragon/").unwrap().1[0].clone();

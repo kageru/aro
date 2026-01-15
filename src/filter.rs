@@ -210,6 +210,8 @@ mod tests {
         let draw_filter = parse_filters("o:/draw \\d cards?/").unwrap().1;
         assert!(draw_filter[0](&lacooda));
         assert!(!draw_filter[0](&bls));
+        let name_filter = parse_filters("name:/des l.c..da/").unwrap().1;
+        assert!(name_filter[0](&lacooda));
     }
 
     #[test]
