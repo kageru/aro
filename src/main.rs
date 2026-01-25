@@ -1,3 +1,5 @@
+#![feature(test)]
+extern crate test;
 use actix_web::{App, HttpResponse, HttpServer, http::header, route, web};
 use data::{Card, CardInfo, Set};
 use filter::SearchCard;
@@ -289,4 +291,17 @@ fn add_data(res: &mut String, pd: &PageData, card_id: Option<usize>) -> AnyResul
     res.push_str(&pd.body);
     res.push_str(&footer());
     Ok(())
+}
+
+#[cfg(all(test, not(debug_assertions)))]
+mod bench {
+    use std::hint::black_box;
+    use super::*;
+
+    #[bench]
+    fn search_result_bench(b: &mut test::Bencher) {
+        let query = "test".to_owned();
+        assert!(compute_results(query.clone(), 0).is_ok());
+        b.iter(|| assert!(compute_results(black_box(query.clone()), 0).is_ok()))
+    }
 }
