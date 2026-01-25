@@ -89,7 +89,6 @@ fn get_field_value(card: &SearchCard, field: Field) -> Option<Value> {
 }
 
 fn filter_value(op: &Operator, field_value: &Value, query_value: &Value) -> bool {
-    dbg!(op, field_value, query_value);
     match (field_value, query_value) {
         (Value::None, _) => false,
         (Value::Numerical(field), Value::Numerical(query)) => op.filter_number(*field, *query),
