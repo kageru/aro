@@ -165,7 +165,7 @@ static FORBIDDEN_ICON: LazyLock<String> =
 static LIMITED_ICON: LazyLock<String> =
     LazyLock::new(|| format!(r#"<img class="banlist-icon" src="{}/static/limited.svg"/>"#, IMG_HOST.as_str()));
 static SEMI_LIMITED_ICON: LazyLock<String> =
-    LazyLock::new(|| format!(r#"<img class="banlist-icon" src="{}/static/semi-limited.svg"/>"#, IMG_HOST.as_str()));
+    LazyLock::new(|| format!(r#"<img class="banlist-icon" src="{}/static/semi_limited.svg"/>"#, IMG_HOST.as_str()));
 
 impl Display for Card {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
