@@ -121,6 +121,7 @@ pub enum Field {
     Level = 4,
     Genesys = 5,
     LinkRating = 6,
+    PendScale = 7,
     Year = 8,
     Price = 9,
     Set = 10,
@@ -146,6 +147,7 @@ impl Display for Field {
             Self::Year => "year",
             Self::Legal => "allowed copies",
             Self::Price => "price",
+            Self::PendScale => "pendulum scale",
         })
     }
 }
@@ -162,6 +164,7 @@ impl FromStr for Field {
             "o" | "eff" | "text" | "effect" | "e" => Self::Text,
             "lr" | "linkrating" => Self::LinkRating,
             "g" | "gen" | "genesys" => Self::Genesys,
+            "ps" | "scale" => Self::PendScale,
             "name" => Self::Name,
             "set" | "s" => Self::Set,
             "year" | "y" => Self::Year,

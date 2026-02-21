@@ -37,6 +37,8 @@ pub struct Card {
     #[serde(default)]
     pub card_prices:   Vec<CardPrice>,
     pub misc_info:     Vec<MiscInfo>,
+    // pendulum scale
+    pub scale:         Option<i32>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq, Clone, Copy, Default)]

@@ -24,6 +24,7 @@ pub struct SearchCard {
     legal_copies:   i32,
     genesys_points: i32,
     price:          Option<i32>,
+    scale:          Option<i32>,
 }
 
 impl SearchCard {
@@ -40,7 +41,7 @@ impl From<&Card> for SearchCard {
                 Some(typeline) => typeline.iter().map(|t| t.to_lowercase()).collect(),
                 None => card.type_fallback.to_lowercase().split(' ').map(str::to_owned).collect(),
             },
-            names:          vec![Some(&card.name), card.misc_info[0].treated_as.as_ref(), card.misc_info[0].beta_name.as_ref()]
+            names:          [Some(&card.name), card.misc_info[0].treated_as.as_ref(), card.misc_info[0].beta_name.as_ref()]
                 .iter()
                 .flatten()
                 .map(|n| n.to_lowercase())
@@ -57,6 +58,7 @@ impl From<&Card> for SearchCard {
             original_year:  card.misc_info[0].tcg_date.map(Date::year),
             legal_copies:   card.banlist_info.map(|bi| bi.ban_tcg).unwrap_or(BanlistStatus::Unlimited) as i32,
             genesys_points: card.misc_info[0].genesys_points,
+            scale:          card.scale,
             price:          card
                 .card_prices
                 .iter()
@@ -85,6 +87,7 @@ fn get_field_value(card: &SearchCard, field: Field) -> Option<Value> {
         Field::Name => Value::MultiplePartial(card.names.clone()),
         Field::Text => Value::String(card.text.clone()),
         Field::Price => Value::Numerical(card.price?),
+        Field::PendScale => Value::Numerical(card.scale?),
     })
 }
 
