@@ -136,6 +136,9 @@ impl Card {
                 write!(f, "Level {level} ")?;
             }
         }
+        if let Some(ps) = self.scale {
+            write!(f, "PS {ps} ")?;
+        }
         if let Some(attr) = &self.attribute {
             write!(f, "{attr}/")?;
         }
