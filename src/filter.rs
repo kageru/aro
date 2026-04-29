@@ -136,6 +136,11 @@ pub fn build_filter(RawCardFilter(field, op, value): RawCardFilter) -> Result<Ca
             let field_value = get_field_value(card, field).unwrap_or_default();
             values.iter().any(|query_value| filter_value(&op, &field_value, query_value))
         }),
+        Value::FieldRef(ref_field) => Box::new(move |card: &SearchCard| {
+            let field_value = get_field_value(card, field).unwrap_or_default();
+            let query_value = get_field_value(card, ref_field).unwrap_or_default();
+            filter_value(&op, &field_value, &query_value)
+        }),
         single_value => Box::new(move |card: &SearchCard| {
             let field_value = get_field_value(card, field).unwrap_or_default();
             filter_value(&op, &field_value, &single_value)
@@ -231,6 +236,19 @@ mod tests {
         assert!(price_filter[0](&bls));
         let price_filter_2 = parse_filters("p<350").unwrap().1;
         assert!(price_filter_2[0](&bls), "Should filter by the cheaper version");
+    }
+
+    #[test]
+    fn cross_field_comparison_test() {
+        let lacooda = SearchCard::from(&serde_json::from_str::<Card>(RAW_MONSTER).unwrap());
+        // lacooda has atk=500, def=600
+        let atk_eq_def = parse_filters("atk=def").unwrap().1;
+        assert!(!atk_eq_def[0](&lacooda));
+        let atk_eq_def_card = SearchCard { atk: Some(600), ..lacooda.clone() };
+        assert!(atk_eq_def[0](&atk_eq_def_card));
+        let atk_lt_def = parse_filters("atk<def").unwrap().1;
+        assert!(atk_lt_def[0](&lacooda));
+        assert!(!atk_lt_def[0](&SearchCard { atk: Some(600), def: Some(500), ..lacooda.clone() }));
     }
 
     #[test]
