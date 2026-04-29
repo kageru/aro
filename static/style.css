@@ -175,3 +175,12 @@ h2 {
   text-align: center;
   flex-grow: 1;
 }
+
+.cardlink {
+  color: var(--hl);
+  text-decoration: none;
+}
+
+.cardlink:hover {
+  text-decoration: underline;
+}

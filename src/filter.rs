@@ -38,7 +38,13 @@ impl From<&Card> for SearchCard {
         Self {
             id:             card.id,
             typeline:       match card.typeline.as_ref() {
-                Some(typeline) => typeline.iter().map(|t| t.to_lowercase()).collect(),
+                // Only monsters have a typeline in the API data
+                Some(typeline) => {
+                    let mut types: Vec<String> = typeline.iter().map(|t| t.to_lowercase()).collect();
+                    types.push("monster".to_owned());
+                    types
+                }
+                // accordingly, these are spell/traps with their subtypes, e.g. “Counter Trap”
                 None => card.type_fallback.to_lowercase().split(' ').map(str::to_owned).collect(),
             },
             names:          [Some(&card.name), card.misc_info[0].treated_as.as_ref(), card.misc_info[0].beta_name.as_ref()]
@@ -236,6 +242,26 @@ mod tests {
         assert!(price_filter[0](&bls));
         let price_filter_2 = parse_filters("p<350").unwrap().1;
         assert!(price_filter_2[0](&bls), "Should filter by the cheaper version");
+    }
+
+    #[test]
+    fn monster_pseudo_type_test() {
+        let lacooda = SearchCard::from(&serde_json::from_str::<Card>(RAW_MONSTER).unwrap());
+        let bls = SearchCard::from(&serde_json::from_str::<Card>(RAW_LINK_MONSTER).unwrap());
+        let coffin = SearchCard::from(&serde_json::from_str::<Card>(RAW_SPELL).unwrap());
+
+        let monster_filter = parse_filters("t:monster").unwrap().1;
+        assert!(monster_filter[0](&lacooda), "effect monster should match t:monster");
+        assert!(monster_filter[0](&bls), "link monster should match t:monster");
+        assert!(!monster_filter[0](&coffin), "spell should not match t:monster");
+
+        // Existing type searches must still work
+        let effect_filter = parse_filters("t:effect").unwrap().1;
+        assert!(effect_filter[0](&lacooda));
+        assert!(effect_filter[0](&bls));
+        let spell_filter = parse_filters("t:spell").unwrap().1;
+        assert!(spell_filter[0](&coffin));
+        assert!(!spell_filter[0](&lacooda));
     }
 
     #[test]

@@ -136,7 +136,18 @@ pub enum Field {
 
 impl Field {
     pub fn is_numeric(self) -> bool {
-        matches!(self, Self::Atk | Self::Def | Self::Level | Self::LinkRating | Self::Genesys | Self::Year | Self::Price | Self::PendScale | Self::Legal)
+        matches!(
+            self,
+            Self::Atk
+                | Self::Def
+                | Self::Level
+                | Self::LinkRating
+                | Self::Genesys
+                | Self::Year
+                | Self::Price
+                | Self::PendScale
+                | Self::Legal
+        )
     }
 }
 

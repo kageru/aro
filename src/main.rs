@@ -53,7 +53,9 @@ static CARDS_BY_ID: LazyLock<HashMap<usize, Card>> = LazyLock::new(|| {
         })
         .collect()
 });
+
 static SEARCH_CARDS: LazyLock<Vec<SearchCard>> = LazyLock::new(|| CARDS.iter().map(SearchCard::from).collect());
+
 static SETS_BY_NAME: LazyLock<HashMap<String, Set>> = LazyLock::new(|| {
     serde_json::from_reader::<_, Vec<Set>>(BufReader::new(File::open("sets.json").expect("sets.json not found")))
         .expect("Could not deserialize sets")
@@ -61,8 +63,20 @@ static SETS_BY_NAME: LazyLock<HashMap<String, Set>> = LazyLock::new(|| {
         .map(|s| (s.set_name.to_lowercase(), s))
         .collect()
 });
+
 static PENDULUM_SEPARATOR: LazyLock<Regex> =
     LazyLock::new(|| Regex::new("(\\n-+)?\\n\\[\\s?(Monster Effect|Flavor Text)\\s?\\]\\n?").unwrap());
+
+// Matches a quoted archetype/card name followed by an optional type qualifier.
+// Group 1: name inside quotes.
+// Group 2: typeline including leading space (e.g. " Spell Card", " Synchro Monster").
+// Group 3: only main card type: Spell/Trap | Spell | Trap | Monster.
+// Group 4: Single trailing character to exclude false positives (see usage site).
+// I’d use lookahead, but the regex crate doesn’t support it.
+static QUOTED_TERM: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#""([^"<>\n]+)"(\s+(?:[A-Z][a-zA-Z-]*\s+)*(Spell/Trap|Spell|Trap|[Mm]onster|card)(?:\s+[Cc]ard)?)?(.?)"#).unwrap()
+});
+
 static IMG_HOST: LazyLock<String> = LazyLock::new(|| std::env::var("IMG_HOST").unwrap_or_else(|_| String::new()));
 
 #[actix_web::main]
@@ -145,18 +159,21 @@ async fn search(q: Option<web::Query<Query>>) -> AnyResult<HttpResponse> {
 async fn card_info(card_id: web::Path<usize>) -> AnyResult<HttpResponse> {
     let mut res = String::with_capacity(2_000);
     let data = match CARDS_BY_ID.get(&card_id) {
-        Some(card) => PageData {
-            title:       format!("{} - {NAME}", card.name),
-            description: card.short_info()?,
-            query:       None,
-            body:        format!(
-                r#"<div> <img alt="Card Image: {}" class="fullimage" src="{}/static/full/{}.jpg"/>{card} <hr/> {} </div>"#,
-                card.name,
-                IMG_HOST.as_str(),
-                card.id,
-                card.extended_info().unwrap_or_else(|_| String::new()),
-            ),
-        },
+        Some(card) => {
+            let card = Card { text: add_search_links(&card.text, &card.name), ..card.clone() };
+            PageData {
+                title:       format!("{} - {NAME}", card.name),
+                description: card.short_info()?,
+                query:       None,
+                body:        format!(
+                    r#"<div> <img alt="Card Image: {}" class="fullimage" src="{}/static/full/{}.jpg"/>{card} <hr/> {} </div>"#,
+                    card.name,
+                    IMG_HOST.as_str(),
+                    card.id,
+                    card.extended_info().unwrap_or_else(|_| String::new()),
+                ),
+            }
+        }
         None => PageData {
             description: format!("Card not found - {NAME}"),
             title:       format!("Card not found - {NAME}"),
@@ -179,6 +196,41 @@ async fn help() -> AnyResult<HttpResponse> {
     };
     add_data(&mut res, &data, None)?;
     Ok(HttpResponse::Ok().insert_header(header::ContentType::html()).body(res))
+}
+
+fn add_search_links(text: &str, card_name: &str) -> String {
+    let own_query = card_name.to_lowercase().replace(' ', "+");
+    QUOTED_TERM
+        .replace_all(text, |caps: &Captures| {
+            // Group 4 is the character immediately following the match.
+            // If it's a quote or alphanumeric the match is a false positive caused by a card
+            // name that itself contains quotes (e.g. K9 "Jacks"), so return it unchanged.
+            let trailing = caps.get(4).map_or("", |m| m.as_str());
+            if trailing.chars().next().is_some_and(|c| c == '"' || c.is_alphanumeric()) {
+                return caps[0].to_string();
+            }
+            let name = &caps[1];
+            let query_name = name.to_lowercase().replace(' ', "+");
+            if query_name == own_query {
+                return format!(r#""{name}"{trailing}"#);
+            }
+            let suffix = caps.get(2).map_or("", |m| m.as_str());
+            let type_keyword = caps.get(3).map_or("", |m| m.as_str());
+            let subtype_filters: String = suffix
+                .split_whitespace()
+                .filter(|&w| w != type_keyword && !w.eq_ignore_ascii_case("card"))
+                .map(|w| format!("+t:{}", w.to_lowercase()))
+                .collect();
+            let type_filter = match type_keyword {
+                "Monster" | "monster" => "+t:monster",
+                "Spell/Trap" => "+t:spell|trap",
+                "Spell" => "+t:spell",
+                "Trap" => "+t:trap",
+                _ => "",
+            };
+            format!(r#"<a href="/?q={query_name}{subtype_filters}{type_filter}" class="cardlink">"{name}"{suffix}</a>{trailing}"#)
+        })
+        .into_owned()
 }
 
 fn add_searchbox(res: &mut String, query: &Option<String>) -> std::fmt::Result {
@@ -293,10 +345,72 @@ fn add_data(res: &mut String, pd: &PageData, card_id: Option<usize>) -> AnyResul
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn quoted_term_linkification() {
+        // "card" included in link text, no type filter
+        assert_eq!(
+            add_search_links(r#"Add 1 "Swordsoul" card from your Deck to your hand."#, "Swordsoul Strategist Longyuan"),
+            r#"Add 1 <a href="/?q=swordsoul" class="cardlink">"Swordsoul" card</a> from your Deck to your hand."#
+        );
+        // Lowercase monster qualifier
+        assert_eq!(
+            add_search_links(r#"Special Summon 1 "Swordsoul" monster from your Deck."#, "Swordsoul Strategist Longyuan"),
+            r#"Special Summon 1 <a href="/?q=swordsoul+t:monster" class="cardlink">"Swordsoul" monster</a> from your Deck."#
+        );
+        // Uppercase adjective + uppercase Monster (specific extra deck type)
+        assert_eq!(
+            add_search_links(r#"Fusion Summon 1 "Branded" Fusion Monster."#, "Branded Beast"),
+            r#"Fusion Summon 1 <a href="/?q=branded+t:fusion+t:monster" class="cardlink">"Branded" Fusion Monster</a>."#
+        );
+        // Uppercase adjective + lowercase monster
+        assert_eq!(
+            add_search_links(r#"Fusion Summon 1 "Branded" Fusion monster."#, "Branded Beast"),
+            r#"Fusion Summon 1 <a href="/?q=branded+t:fusion+t:monster" class="cardlink">"Branded" Fusion monster</a>."#
+        );
+        // Spell Card
+        assert_eq!(
+            add_search_links(r#"Add 1 "Branded" Spell Card from your Deck."#, "Branded Beast"),
+            r#"Add 1 <a href="/?q=branded+t:spell" class="cardlink">"Branded" Spell Card</a> from your Deck."#
+        );
+        // Subtype before Spell
+        assert_eq!(
+            add_search_links(r#"Add 1 "K9" Quick-Play Spell from your Deck."#, "K9-66X \"Jacks\""),
+            r#"Add 1 <a href="/?q=k9+t:quick-play+t:spell" class="cardlink">"K9" Quick-Play Spell</a> from your Deck."#
+        );
+        // Spell/Trap
+        assert_eq!(
+            add_search_links(r#"Set 1 "Branded" Spell/Trap from your Deck."#, "Branded Beast"),
+            r#"Set 1 <a href="/?q=branded+t:spell|trap" class="cardlink">"Branded" Spell/Trap</a> from your Deck."#
+        );
+        // Multi-word card name, no type qualifier
+        assert_eq!(
+            add_search_links(r#"Tribute "Blue-Eyes White Dragon"."#, "Kaibaman"),
+            r#"Tribute <a href="/?q=blue-eyes+white+dragon" class="cardlink">"Blue-Eyes White Dragon"</a>."#
+        );
+        // Self-reference — must not be linkified
+        assert_eq!(
+            add_search_links(
+                r#"You can only use each effect of "Swordsoul Strategist Longyuan" once per turn."#,
+                "Swordsoul Strategist Longyuan"
+            ),
+            r#"You can only use each effect of "Swordsoul Strategist Longyuan" once per turn."#
+        );
+        // Card name containing quotes — neither fragment must be linkified
+        assert_eq!(
+            add_search_links(r#"You can only use this effect of "K9-66X "Jacks"" once per turn."#, r#"K9-66X "Jacks""#),
+            r#"You can only use this effect of "K9-66X "Jacks"" once per turn."#
+        );
+    }
+}
+
 #[cfg(all(test, not(debug_assertions)))]
 mod bench {
-    use std::hint::black_box;
     use super::*;
+    use std::hint::black_box;
 
     #[bench]
     fn search_result_bench(b: &mut test::Bencher) {
