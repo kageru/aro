@@ -157,8 +157,13 @@ pub fn build_filter(RawCardFilter(field, op, value): RawCardFilter) -> Result<Ca
             let field_value = get_field_value(card, field).unwrap_or_default();
             values.iter().any(|query_value| filter_value(&op, &field_value, query_value))
         }),
-        Value::FieldRef(ref_field) => Box::new(move |card: &SearchCard| {
+        Value::FieldRef(ref_field, raw) => Box::new(move |card: &SearchCard| {
             let field_value = get_field_value(card, field).unwrap_or_default();
+            if !field.is_numeric() {
+                // Source is a string field — treat the raw input as a string literal.
+                // e.g. `o:atk` searches for "atk" in card text rather than comparing text to ATK value.
+                return filter_value(&op, &field_value, &Value::String(raw.clone()));
+            }
             let query_value = get_field_value(card, ref_field).unwrap_or_default();
             filter_value(&op, &field_value, &query_value)
         }),

@@ -123,7 +123,7 @@ fn parse_single_value(input: &str) -> Result<Value, String> {
     Ok(match input.parse() {
         Ok(n) => Value::Numerical(n),
         Err(_) => match input.parse::<Field>() {
-            Ok(f) if f.is_numeric() => Value::FieldRef(f),
+            Ok(f) if f.is_numeric() => Value::FieldRef(f, input.to_lowercase()),
             _ => Value::String(sanitize(input)?),
         },
     })
@@ -298,7 +298,9 @@ pub enum Value {
     // Multiple values that should support partial matching, e.g. Card Name (YGOrg translation + official).
     MultiplePartial(Vec<String>),
     // Reference to another field for cross-field comparisons, e.g. `atk=def`.
-    FieldRef(Field),
+    // The String is the original lowercased input (e.g. "atk"), used as a fallback
+    // when the source field is non-numeric (e.g. `o:atk` → search for "atk" in text).
+    FieldRef(Field, String),
     Classifier(Classifier),
     #[default]
     None,
@@ -313,7 +315,7 @@ impl PartialEq for Value {
             (Value::Multiple(v1), Value::Multiple(v2)) => v1 == v2,
             (Value::MultiplePartial(v1), Value::MultiplePartial(v2)) => v1 == v2,
             (Value::Regex(r1), Value::Regex(r2)) => r1.as_str() == r2.as_str(),
-            (Value::FieldRef(f1), Value::FieldRef(f2)) => f1 == f2,
+            (Value::FieldRef(f1, _), Value::FieldRef(f2, _)) => f1 == f2,
             (Value::Classifier(c1), Value::Classifier(c2)) => c1 == c2,
             (Value::None, Value::None) => true,
             _ => false,
@@ -341,7 +343,7 @@ impl Display for Value {
             Self::MultiplePartial(m) => {
                 write!(f, "includes one of [{}]", m.join(", "))
             }
-            Self::FieldRef(field) => write!(f, "{field}"),
+            Self::FieldRef(field, _) => write!(f, "{field}"),
             Self::Classifier(c) => write!(f, "{c}"),
             Self::None => f.write_str("none"),
         }
