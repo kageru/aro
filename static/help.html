@@ -17,6 +17,7 @@ Currently supported search fields are:
   <li>The <code>set</code> (or <code>s</code>) a card was printed in. This considers all printings, not just the original, and uses the set code (e.g. <code>ioc</code> for Invasion of Chaos or <code>pote</code> for Power of the Elements).</li>
   <li>The <code>year</code> (or <code>y</code>) a card was <em>first</em> printed in the TCG.
   <li>The <code>copies</code> (or <code>legal</code>) you’re allowed to play according to the current TCG banlist.</li>
+  <li><code>is:extradeck</code> (or <code>is:ed</code>) matches all Extra Deck monsters. <code>is:maindeck</code> (or <code>is:md</code>) matches everything else.</li>
   <li>The <code>price</code> (or <code>p</code>) of the cheapest version of the card <em>in cents</em>. This will use tcgplayer or cardmarket, whichever is lower. Results can be off because of OCG cards on the market.</li>
 </ul>
 <p>It is possible to filter for multiple values at once, e.g. <code>level:3|6|9</code> to find all cards that are level 3, 6, or 9.</p>
@@ -31,7 +32,7 @@ Old/unofficially translated names are also supported, so <a href="/?q=eidolon"><
 The following search operators are supported:
 <ul>
   <li>Equality (<code>:</code>, <code>=</code>, or <code>==</code>) checks if the value is equal to your search. For the effect, this checks if your search is contained in the field, so <a href="/?q=effect%3Abanish"><code>effect:banish</code></a> will show all cards that have the word “banish” anywhere in their text.</li>
-  <li>Inequality (<code>!=</code>) checks if the value is not equal to your search. For text fields, this return cards that do not contain the word you searched.</li>
+  <li>Inequality (<code>!=</code>) checks if the value is not equal to your search. For text fields, this return cards that do not contain the word you searched. For categories like main or extra deck, this inverts the filter.</li>
   <li>Comparisons (<code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code>) check if the value is less than, greater than, less than or equal, and greater than or equal to your search. <a href="/?q=atk%3E%3D4000"><code>atk&gt;=4000</code></a> will show all cards with an ATK of at least 4000. These operators do not work for text fields.</li>
 </ul>
 <p>For numeric fields, you can use another field name as the search value to compare two fields against each other. For example, <a href="/?q=atk%3Ddef"><code>atk=def</code></a> finds all monsters with equal ATK and DEF, and <a href="/?q=atk%3Edef"><code>atk&gt;def</code></a> finds all monsters where ATK exceeds DEF. This works with any combination of numeric fields (<code>atk</code>, <code>def</code>, <code>level</code>, <code>lr</code>, <code>ps</code>, <code>genesys</code>, <code>year</code>, <code>price</code>, <code>copies</code>).</p>
@@ -47,8 +48,7 @@ The following search operators are supported:
   <li>All effect monsters printed in Legend of Blue-Eyes: <a href="/?q=set%3Alob+t%3Aeffect"><code>set:lob t:effect</code></a></li>
   <li>All Zoodiac cards that are currently banned: <a href="/?q=legal%3A0+zoodiac"><code>legal:0 zoodiac</code></a></li>
   <li>All chaos-type effect monsters that are level 6 or 8: <a href="/?q=a%3Alight%7Cdark+t%3Aeffect+l%3A6%7C8"><code>a:light|dark t:effect l:6|8</code></a></li>
-  <li>All cards that are currently banned and cost less than 50 points in Genesys (Links and Pends are ommitted automatically): <a href="/?q=legal%3A0+g%3C50"><code>legal:0 g&lt;50</code></a></li>
-  <li>All monsters with equal ATK and DEF: <a href="/?q=atk%3Ddef"><code>atk=def</code></a></li>
-  <li>All monsters where ATK exceeds DEF: <a href="/?q=atk%3Edef"><code>atk&gt;def</code></a></li>
-  <li>All Light Spellcasters where ATK equals DEF (to be summoned with <a href="/?q=luluwalilith">Luluwalilith</a>): <a href="/?q=a%3Alight+t%3Aspellcaster+atk%3Adef"><code>a:light t:spellcaster atk:def</code></a>.</li>
+  <li>All cards that are currently banned in the TCG and cost less than 50 points in Genesys (Links and Pends are ommitted automatically): <a href="/?q=legal%3A0+g%3C50"><code>legal:0 g&lt;50</code></a></li>
+  <li>All Light Spellcasters whose ATK equals their DEF: <a href="/?q=a%3Alight+t%3Aspellcaster+atk%3Adef"><code>a:light t:spellcaster atk:def</code></a>.</li>
+  <li>All extra deck monsters with 0 DEF: <a href="/?q=is%3Aed+def%3A0"><code>is:ed def:0</code></a></li>
 </ul>

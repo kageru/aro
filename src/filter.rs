@@ -1,6 +1,6 @@
 use crate::{
     data::{BanlistStatus, Card},
-    parser::{Field, Operator, RawCardFilter, Value},
+    parser::{Classifier, Field, Operator, RawCardFilter, Value},
 };
 use itertools::Itertools;
 use time::Date;
@@ -94,6 +94,7 @@ fn get_field_value(card: &SearchCard, field: Field) -> Option<Value> {
         Field::Text => Value::String(card.text.clone()),
         Field::Price => Value::Numerical(card.price?),
         Field::PendScale => Value::Numerical(card.scale?),
+        Field::Is => unreachable!("Field::Is is handled before get_field_value is called"),
     })
 }
 
@@ -137,6 +138,20 @@ fn filter_value(op: &Operator, field_value: &Value, query_value: &Value) -> bool
 }
 
 pub fn build_filter(RawCardFilter(field, op, value): RawCardFilter) -> Result<CardFilter, String> {
+    if field == Field::Is {
+        let Value::Classifier(classifier) = value else {
+            return Err("unexpected value type for is: filter".to_owned());
+        };
+        let target_extra = classifier == Classifier::ExtraDeck;
+        return Ok(Box::new(move |card: &SearchCard| {
+            let is_extra = card.typeline.iter().any(|t| matches!(t.as_str(), "synchro" | "xyz" | "link" | "fusion"));
+            match op {
+                Operator::Equal => is_extra == target_extra,
+                Operator::NotEqual => is_extra != target_extra,
+                _ => false,
+            }
+        }));
+    }
     Ok(match value {
         Value::Multiple(values) => Box::new(move |card: &SearchCard| {
             let field_value = get_field_value(card, field).unwrap_or_default();
@@ -275,6 +290,34 @@ mod tests {
         let atk_lt_def = parse_filters("atk<def").unwrap().1;
         assert!(atk_lt_def[0](&lacooda));
         assert!(!atk_lt_def[0](&SearchCard { atk: Some(600), def: Some(500), ..lacooda.clone() }));
+    }
+
+    #[test]
+    fn is_filter_test() {
+        let lacooda = SearchCard::from(&serde_json::from_str::<Card>(RAW_MONSTER).unwrap());
+        let bls = SearchCard::from(&serde_json::from_str::<Card>(RAW_LINK_MONSTER).unwrap());
+        let coffin = SearchCard::from(&serde_json::from_str::<Card>(RAW_SPELL).unwrap());
+        // bls is a Link monster → extra deck; lacooda and coffin are not
+        let synchro_lacooda =
+            SearchCard { typeline: vec!["tuner".to_owned(), "synchro".to_owned(), "monster".to_owned()], ..lacooda.clone() };
+
+        for q in ["is:extradeck", "is:ed", "is!=maindeck", "is!=md"] {
+            let f = parse_filters(q).unwrap().1;
+            assert!(f[0](&bls), "{q} should match link monster");
+            assert!(f[0](&synchro_lacooda), "{q} should match synchro monster");
+            assert!(!f[0](&lacooda), "{q} should not match effect monster");
+            assert!(!f[0](&coffin), "{q} should not match spell");
+        }
+        for q in ["is:maindeck", "is:md", "is!=extradeck", "is!=ed"] {
+            let f = parse_filters(q).unwrap().1;
+            assert!(!f[0](&bls), "{q} should not match link monster");
+            assert!(f[0](&lacooda), "{q} should match effect monster");
+            assert!(f[0](&coffin), "{q} should match spell");
+        }
+
+        // Unknown classifier falls through to name search
+        let (raw, _) = parse_filters("is:banana").unwrap();
+        assert_eq!(raw[0].0, Field::Name, "unknown is: classifier should become a name search");
     }
 
     #[test]

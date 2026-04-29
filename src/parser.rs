@@ -59,10 +59,25 @@ fn fallback_filter(query: &str) -> Result<RawCardFilter, String> {
     Ok(RawCardFilter(Field::Name, Operator::Equal, Value::String(sanitize(query)?)))
 }
 
+fn parse_is_filter(input: &str) -> IResult<&str, RawCardFilter> {
+    let (rest, (_, op, classifier)) = tuple((
+        verify(take_while(char::is_alphabetic), |s: &str| s.eq_ignore_ascii_case("is")),
+        operator,
+        word_non_empty,
+    ))(input)?;
+    let classifier = match classifier.to_lowercase().as_str() {
+        "extradeck" | "ed" => Classifier::ExtraDeck,
+        "maindeck" | "md" => Classifier::MainDeck,
+        _ => return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Verify))),
+    };
+    Ok((rest, RawCardFilter(Field::Is, op, Value::Classifier(classifier))))
+}
+
 fn parse_raw_filter(input: &str) -> IResult<&str, RawCardFilter> {
     preceded(
         multispace0,
         alt((
+            parse_is_filter,
             map(complete(tuple((field, operator, values))), |(f, o, v)| RawCardFilter(f, o, v)),
             map_res(word_non_empty, fallback_filter),
         )),
@@ -114,7 +129,8 @@ fn parse_single_value(input: &str) -> Result<Value, String> {
     })
 }
 
-/// Ordinals are given highest = fastest to filter.
+/// Ordinals are given lowest = fastest to filter
+/// (numeric first, then strings sorted roughly by length).
 /// This is used to sort filters before applying them.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Field {
@@ -130,7 +146,8 @@ pub enum Field {
     Set = 10,
     Type = 12,
     Attribute = 14,
-    Name = 18,
+    Name = 16,
+    Is = 18,
     Text = 20,
 }
 
@@ -154,6 +171,7 @@ impl Field {
 impl Display for Field {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
+            Self::Is => "category",
             Self::Text => "text",
             Self::Name => "name",
             Self::Attribute => "attribute",
@@ -246,6 +264,21 @@ impl Display for Operator {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Classifier {
+    ExtraDeck,
+    MainDeck,
+}
+
+impl Display for Classifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::ExtraDeck => "extradeck",
+            Self::MainDeck => "maindeck",
+        })
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct RawCardFilter(pub Field, pub Operator, pub Value);
 
@@ -266,6 +299,7 @@ pub enum Value {
     MultiplePartial(Vec<String>),
     // Reference to another field for cross-field comparisons, e.g. `atk=def`.
     FieldRef(Field),
+    Classifier(Classifier),
     #[default]
     None,
 }
@@ -280,6 +314,7 @@ impl PartialEq for Value {
             (Value::MultiplePartial(v1), Value::MultiplePartial(v2)) => v1 == v2,
             (Value::Regex(r1), Value::Regex(r2)) => r1.as_str() == r2.as_str(),
             (Value::FieldRef(f1), Value::FieldRef(f2)) => f1 == f2,
+            (Value::Classifier(c1), Value::Classifier(c2)) => c1 == c2,
             (Value::None, Value::None) => true,
             _ => false,
         }
@@ -307,6 +342,7 @@ impl Display for Value {
                 write!(f, "includes one of [{}]", m.join(", "))
             }
             Self::FieldRef(field) => write!(f, "{field}"),
+            Self::Classifier(c) => write!(f, "{c}"),
             Self::None => f.write_str("none"),
         }
     }
