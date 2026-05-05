@@ -74,7 +74,7 @@ static PENDULUM_SEPARATOR: LazyLock<Regex> =
 // Group 4: Single trailing character to exclude false positives (see usage site).
 // I’d use lookahead, but the regex crate doesn’t support it.
 static QUOTED_TERM: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#""([^"<>\n]+)"(\s+(?:[A-Z][a-zA-Z-]*\s+)*(Spell/Trap|Spell|Trap|[Mm]onster|card)(?:\s+[Cc]ard)?)?(.?)"#).unwrap()
+    Regex::new(r#""([^"<>\n]+)"(\s+(?:[A-Z][a-zA-Z-]*\s+)*(Spells?/Traps?|Spells?|Traps?|[Mm]onsters?|cards?)(?:\s+[Cc]ard)?)?(.?)"#).unwrap()
 });
 
 static IMG_HOST: LazyLock<String> = LazyLock::new(|| std::env::var("IMG_HOST").unwrap_or_else(|_| String::new()));
