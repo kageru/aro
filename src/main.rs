@@ -1,6 +1,6 @@
-#![feature(test)]
+#![feature(test, trim_prefix_suffix)]
 extern crate test;
-use actix_web::{App, HttpResponse, HttpServer, http::header, route, web};
+use actix_web::{http::header, route, web, App, HttpResponse, HttpServer};
 use data::{Card, CardInfo, Set};
 use filter::SearchCard;
 use itertools::Itertools;
@@ -14,8 +14,8 @@ use std::{
     io::BufReader,
     net::Ipv4Addr,
     sync::{
-        LazyLock,
         atomic::{AtomicUsize, Ordering},
+        LazyLock,
     },
     time::Instant,
 };
@@ -74,7 +74,26 @@ static PENDULUM_SEPARATOR: LazyLock<Regex> =
 // Group 4: Single trailing character to exclude false positives (see usage site).
 // I’d use lookahead, but the regex crate doesn’t support it.
 static QUOTED_TERM: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#""([^"<>\n]+)"(\s+(?:[A-Z][a-zA-Z-]*\s+)*(Spells?/Traps?|Spells?|Traps?|[Mm]onsters?|cards?)(?:\s+[Cc]ard)?)?(.?)"#).unwrap()
+    Regex::new(r#""([^"<>\n]+)"(\s+(?:[A-Z][a-zA-Z-]*\s+)*(Spells?/Traps?|Spells?|Traps?|[Mm]onsters?|cards?)(?:\s+[Cc]ard)?)?(.?)"#)
+        .unwrap()
+});
+
+// Matches TYPE that mentions "Name", e.g. "Equip Spell that mentions "Adventurer Token"".
+// Applied before QUOTED_TERM. Uses &quot;/single-quoted attrs in output to prevent re-matching.
+static MENTIONS_TERM: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?P<qualifier>(?:[A-Za-z][a-zA-Z/-]*\s+)*(?P<type_keyword>Spells?/Traps?|Spells?|Traps?|[Mm]onsters?|[Cc]ards?))\s+that mentions\s+"(?P<name>[^"<>\n]+)""#,
+    )
+    .unwrap()
+});
+
+// Matches "Name", or [N] TYPE that mentions it, e.g. '"Invocation", or 1 Spell that mentions it'.
+// Applied before MENTIONS_TERM and QUOTED_TERM.
+static MENTIONS_IT_TERM: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#""(?P<name>[^"<>\n]+)"(?P<between>,?\s+or\s+\d*\s*)(?P<qualifier>(?:[A-Za-z][a-zA-Z/-]*\s+)*(?P<type_keyword>Spells?/Traps?|Spells?|Traps?|[Mm]onsters?|[Cc]ards?))\s+that mentions it"#,
+    )
+    .unwrap()
 });
 
 static IMG_HOST: LazyLock<String> = LazyLock::new(|| std::env::var("IMG_HOST").unwrap_or_else(|_| String::new()));
@@ -198,10 +217,48 @@ async fn help() -> AnyResult<HttpResponse> {
     Ok(HttpResponse::Ok().insert_header(header::ContentType::html()).body(res))
 }
 
+// Builds the query string for a "mentions" link with type filters and o:"name".
+fn build_mentions_query(qualifier: &str, type_keyword: &str, name_query: &str) -> String {
+    let mut filters: Vec<String> = qualifier
+        .split_whitespace()
+        .filter(|&w| !w.eq_ignore_ascii_case(type_keyword) && !w.eq_ignore_ascii_case("card") && !w.eq_ignore_ascii_case("cards"))
+        .map(|w| format!("t:{}", w.to_lowercase()))
+        .collect();
+    let type_filter = match type_keyword.to_lowercase().trim_suffix("s") {
+        "monster" => "t:monster",
+        "spell/trap" | "spells/traps" => "t:spell|trap",
+        "spell" => "t:spell",
+        "trap" => "t:trap",
+        _ => "",
+    };
+    if !type_filter.is_empty() {
+        filters.push(type_filter.to_owned());
+    }
+    // %22 is " url encoded
+    filters.push(format!("o:%22{name_query}%22"));
+    filters.join("+")
+}
+
 fn add_search_links(text: &str, card_name: &str) -> String {
-    let own_query = card_name.to_lowercase().replace(' ', "+");
+    let text = MENTIONS_IT_TERM.replace_all(text, |caps: &Captures| {
+        let qualifier    = caps.name("qualifier").unwrap().as_str();
+        let type_keyword = caps.name("type_keyword").unwrap().as_str();
+        let name         = caps.name("name").unwrap().as_str();
+        let between      = caps.name("between").unwrap().as_str();
+        let query_name = name.to_lowercase().replace(' ', "+");
+        let type_query = build_mentions_query(qualifier, type_keyword, &query_name);
+        format!(r#"<a href='/?q={query_name}' class='cardlink'>&quot;{name}&quot;</a>{between}<a href='/?q={type_query}' class='cardlink'>{qualifier} that mentions it</a>"#)
+    });
+    let text = MENTIONS_TERM.replace_all(&text, |caps: &Captures| {
+        let qualifier = caps.name("qualifier").unwrap().as_str();
+        let type_keyword = caps.name("type_keyword").unwrap().as_str();
+        let name = caps.name("name").unwrap().as_str();
+        let query = build_mentions_query(qualifier, type_keyword, &name.to_lowercase().replace(' ', "+"));
+        format!(r#"<a href='/?q={query}' class='cardlink'>{qualifier} that mentions &quot;{name}&quot;</a>"#)
+    });
+    let link_to_self = card_name.to_lowercase().replace(' ', "+");
     QUOTED_TERM
-        .replace_all(text, |caps: &Captures| {
+        .replace_all(&text, |caps: &Captures| {
             // Group 4 is the character immediately following the match.
             // If it's a quote or alphanumeric the match is a false positive caused by a card
             // name that itself contains quotes (e.g. K9 "Jacks"), so return it unchanged.
@@ -211,7 +268,7 @@ fn add_search_links(text: &str, card_name: &str) -> String {
             }
             let name = &caps[1];
             let query_name = name.to_lowercase().replace(' ', "+");
-            if query_name == own_query {
+            if query_name == link_to_self {
                 return format!(r#""{name}"{trailing}"#);
             }
             let suffix = caps.get(2).map_or("", |m| m.as_str());
@@ -349,6 +406,10 @@ fn add_data(res: &mut String, pd: &PageData, card_id: Option<usize>) -> AnyResul
 mod tests {
     use super::*;
 
+    // You may notice that the card name in most of these doesn’t match the effect.
+    // That’s because I’m lazy and let Claude generate my test code,
+    // which then hallucinates a Branded Beast that can fusion summon.
+    // I’m keeping these because, again, I’m lazy.
     #[test]
     fn quoted_term_linkification() {
         // "card" included in link text, no type filter
@@ -403,6 +464,37 @@ mod tests {
         assert_eq!(
             add_search_links(r#"You can only use this effect of "K9-66X "Jacks"" once per turn."#, r#"K9-66X "Jacks""#),
             r#"You can only use this effect of "K9-66X "Jacks"" once per turn."#
+        );
+        // "mentions" — single-type qualifier
+        assert_eq!(
+            add_search_links(r#"add 1 monster that mentions "Clear World" from your Deck to your hand."#, "Clear World Guard"),
+            r#"add 1 <a href='/?q=t:monster+o:%22clear+world%22' class='cardlink'>monster that mentions &quot;Clear World&quot;</a> from your Deck to your hand."#
+        );
+        // "mentions" — two-word qualifier with subtype
+        assert_eq!(
+            add_search_links(
+                r#"Add 1 Equip Spell that mentions "Adventurer Token" from your Deck to your hand."#,
+                "Water Enchantress of the Temple"
+            ),
+            r#"Add 1 <a href='/?q=t:equip+t:spell+o:%22adventurer+token%22' class='cardlink'>Equip Spell that mentions &quot;Adventurer Token&quot;</a> from your Deck to your hand."#
+        );
+        // "mentions" — Fusion Monster qualifier
+        assert_eq!(
+            add_search_links(r#"Special Summon 1 Fusion Monster that mentions "Fallen of Albaz"."#, "Mirrorjade the Iceblade Dragon"),
+            r#"Special Summon 1 <a href='/?q=t:fusion+t:monster+o:%22fallen+of+albaz%22' class='cardlink'>Fusion Monster that mentions &quot;Fallen of Albaz&quot;</a>."#
+        );
+        // "mentions it" — name link + type+o: link
+        assert_eq!(
+            add_search_links(r#"Add 1 "Invocation", or 1 Spell that mentions it, from your Deck to your hand."#, "Aleister the Invoker"),
+            r#"Add 1 <a href='/?q=invocation' class='cardlink'>&quot;Invocation&quot;</a>, or 1 <a href='/?q=t:spell+o:%22invocation%22' class='cardlink'>Spell that mentions it</a>, from your Deck to your hand."#
+        );
+        // "mentions it" — generic "card" type keyword, no comma before "or"
+        assert_eq!(
+            add_search_links(
+                r#"You can send 1 "Fallen of Albaz" or 1 card that mentions it from your Deck to the GY."#,
+                "Bystial Magnamhut"
+            ),
+            r#"You can send 1 <a href='/?q=fallen+of+albaz' class='cardlink'>&quot;Fallen of Albaz&quot;</a> or 1 <a href='/?q=o:%22fallen+of+albaz%22' class='cardlink'>card that mentions it</a> from your Deck to the GY."#
         );
     }
 }
