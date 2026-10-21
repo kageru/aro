@@ -9,6 +9,7 @@ use time::Date;
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct SearchCard {
     pub id:         usize,
+    pub tags:       Vec<String>,
     typeline:       Vec<String>,
     names:          Vec<String>,
     text:           String,
@@ -37,6 +38,7 @@ impl From<&Card> for SearchCard {
     fn from(card: &Card) -> Self {
         Self {
             id:             card.id,
+            tags:           card.tags.clone(),
             typeline:       match card.typeline.as_ref() {
                 // Only monsters have a typeline in the API data
                 Some(typeline) => {
@@ -89,6 +91,7 @@ fn get_field_value(card: &SearchCard, field: Field) -> Option<Value> {
         Field::Year => Value::Numerical(card.original_year?),
         Field::Set => Value::Multiple(card.sets.clone().into_iter().map(Value::String).collect()),
         Field::Type => Value::Multiple(card.typeline.clone().into_iter().map(Value::String).collect()),
+        Field::Tag => Value::Multiple(card.tags.iter().cloned().map(Value::String).collect()),
         Field::Attribute => Value::String(card.attribute.clone().unwrap_or_default()),
         Field::Name => Value::MultiplePartial(card.names.clone()),
         Field::Text => Value::String(card.text.clone()),
@@ -181,6 +184,41 @@ mod tests {
         data::tests::{RAW_LINK_MONSTER, RAW_MONSTER, RAW_SPELL},
         parser::parse_filters,
     };
+
+    #[test]
+    fn tag_normalization() {
+        let card = serde_json::from_str::<Card>(RAW_MONSTER).unwrap();
+        for (raw, expected) in [
+            ("Takes control of an opponent's monster", "takes-control-of-an-opponents-monster"),
+            ("You draw cards", "you-draw-cards"),
+            ("Sets in Spell & Trap Zone", "sets-in-spell-trap-zone"),
+        ] {
+            let tagged = card.clone().with_tags(&[raw.to_owned(), raw.to_owned()]);
+            assert_eq!(tagged.tags, [expected], "{raw}");
+            assert_eq!(SearchCard::from(&tagged).tags, tagged.tags);
+        }
+        assert!(card.with_tags(&[]).tags.is_empty());
+    }
+
+    #[test]
+    fn tag_filter() {
+        let card = serde_json::from_str::<Card>(RAW_MONSTER).unwrap();
+        let tagged = SearchCard::from(&card.clone().with_tags(&["You draw cards".to_owned(), "Tributes for cost".to_owned()]));
+        let card = SearchCard::from(&card);
+        for (query, matches_tagged, matches_untagged) in [
+            ("tag:you-draw-cards", true, false),
+            ("tag:YOU-DRAW-CARDS", true, false),
+            ("tag:draw", false, false),
+            ("tag!=you-draw-cards", false, true),
+            ("tag:missing|you-draw-cards", true, false),
+            ("tag:you-draw-cards tag:tributes-for-cost", true, false),
+            ("tag:you-draw-cards tag:missing", false, false),
+        ] {
+            let filters = parse_filters(query).unwrap().1;
+            assert_eq!(filters.iter().all(|f| f(&tagged)), matches_tagged, "{query}");
+            assert_eq!(filters.iter().all(|f| f(&card)), matches_untagged, "{query}");
+        }
+    }
 
     #[test]
     fn level_filter_test() {

@@ -60,11 +60,8 @@ fn fallback_filter(query: &str) -> Result<RawCardFilter, String> {
 }
 
 fn parse_is_filter(input: &str) -> IResult<&str, RawCardFilter> {
-    let (rest, (_, op, classifier)) = tuple((
-        verify(take_while(char::is_alphabetic), |s: &str| s.eq_ignore_ascii_case("is")),
-        operator,
-        word_non_empty,
-    ))(input)?;
+    let (rest, (_, op, classifier)) =
+        tuple((verify(take_while(char::is_alphabetic), |s: &str| s.eq_ignore_ascii_case("is")), operator, word_non_empty))(input)?;
     let classifier = match classifier.to_lowercase().as_str() {
         "extradeck" | "ed" => Classifier::ExtraDeck,
         "maindeck" | "md" => Classifier::MainDeck,
@@ -145,6 +142,7 @@ pub enum Field {
     Price = 9,
     Set = 10,
     Type = 12,
+    Tag = 13,
     Attribute = 14,
     Name = 16,
     Is = 18,
@@ -176,6 +174,7 @@ impl Display for Field {
             Self::Name => "name",
             Self::Attribute => "attribute",
             Self::Type => "type",
+            Self::Tag => "tag",
             Self::Level => "level/rank",
             Self::Atk => "ATK",
             Self::Def => "DEF",
@@ -198,6 +197,7 @@ impl FromStr for Field {
             "def" => Self::Def,
             "level" | "l" => Self::Level,
             "type" | "t" => Self::Type,
+            "tag" => Self::Tag,
             "attribute" | "attr" | "a" => Self::Attribute,
             "o" | "eff" | "text" | "effect" | "e" => Self::Text,
             "lr" | "linkrating" => Self::LinkRating,

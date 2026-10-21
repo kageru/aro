@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use serde::Deserialize;
 use std::{
     fmt::{self, Display, Write},
@@ -15,6 +16,8 @@ pub struct CardInfo {
 #[derive(Debug, Deserialize, PartialEq, Eq, Clone, Default)]
 pub struct Card {
     pub id:            usize,
+    #[serde(skip)]
+    pub tags:          Vec<String>,
     pub typeline:      Option<Vec<String>>,
     #[serde(rename = "humanReadableCardType")]
     pub type_fallback: String, // For Spell/Trap cards
@@ -85,6 +88,15 @@ pub struct CardPrice {
 }
 
 impl Card {
+    pub fn with_tags(mut self, tags: &[String]) -> Self {
+        self.tags = tags
+            .iter()
+            .map(|tag| tag.to_lowercase().replace(['\'', '&', '<', '>'], "").replace("  ", " ").replace(' ', "-"))
+            .unique()
+            .collect();
+        self
+    }
+
     pub fn extended_info(&self) -> Result<String, fmt::Error> {
         let mut s = String::with_capacity(1000);
         // the ygorg search breaks for I:P and similar criminals.

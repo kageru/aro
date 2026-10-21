@@ -1,6 +1,6 @@
 #![feature(test, trim_prefix_suffix)]
 extern crate test;
-use actix_web::{http::header, route, web, App, HttpResponse, HttpServer};
+use actix_web::{App, HttpResponse, HttpServer, http::header, route, web};
 use data::{Card, CardInfo, Set};
 use filter::SearchCard;
 use itertools::Itertools;
@@ -14,8 +14,8 @@ use std::{
     io::BufReader,
     net::Ipv4Addr,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         LazyLock,
+        atomic::{AtomicUsize, Ordering},
     },
     time::Instant,
 };
@@ -32,6 +32,9 @@ type AnyResult<T> = Result<T, Box<dyn std::error::Error>>;
 const PAGE_SIZE: usize = 120;
 
 static CARDS: LazyLock<Vec<Card>> = LazyLock::new(|| {
+    let tags: HashMap<String, Vec<String>> =
+        serde_json::from_reader(BufReader::new(File::open("actions.json").expect("actions.json not found")))
+            .expect("Could not deserialize actions");
     let mut cards = serde_json::from_reader::<_, CardInfo>(BufReader::new(File::open("cards.json").expect("cards.json not found")))
         .expect("Could not deserialize cards")
         .data;
@@ -39,6 +42,12 @@ static CARDS: LazyLock<Vec<Card>> = LazyLock::new(|| {
         c.card_sets.sort_unstable_by_key(|s| SETS_BY_NAME.get(&s.set_name.to_lowercase()).and_then(|s| s.tcg_date).unwrap_or(Date::MAX))
     });
     cards
+        .into_iter()
+        .map(|card| {
+            let card_tags = tags.get(&card.name).map(Vec::as_slice).unwrap_or_default();
+            card.with_tags(card_tags)
+        })
+        .collect()
 });
 static CARDS_BY_ID: LazyLock<HashMap<usize, Card>> = LazyLock::new(|| {
     CARDS
@@ -185,11 +194,12 @@ async fn card_info(card_id: web::Path<usize>) -> AnyResult<HttpResponse> {
                 description: card.short_info()?,
                 query:       None,
                 body:        format!(
-                    r#"<div> <img alt="Card Image: {}" class="fullimage" src="{}/static/full/{}.jpg"/>{card} <hr/> {} </div>"#,
+                    r#"<div> <img alt="Card Image: {}" class="fullimage" src="{}/static/full/{}.jpg"/>{card} <hr/> {} {} </div>"#,
                     card.name,
                     IMG_HOST.as_str(),
                     card.id,
                     card.extended_info().unwrap_or_else(|_| String::new()),
+                    tag_links(&card.tags),
                 ),
             }
         }
@@ -202,6 +212,17 @@ async fn card_info(card_id: web::Path<usize>) -> AnyResult<HttpResponse> {
     };
     add_data(&mut res, &data, Some(*card_id))?;
     Ok(HttpResponse::Ok().insert_header(header::ContentType::html()).body(res))
+}
+
+fn tag_links(tags: &[String]) -> String {
+    if tags.is_empty() {
+        return String::new();
+    }
+    let links = tags
+        .iter()
+        .map(|tag| format!(r#"<a href="/?q={}" class="cardlink">{tag}</a>"#, urlencoding::encode(&format!("tag:{tag}"))))
+        .join(", ");
+    format!("<p>Tags: {links}</p>")
 }
 
 #[route("/help", method = "GET", method = "HEAD")]
@@ -405,6 +426,15 @@ fn add_data(res: &mut String, pd: &PageData, card_id: Option<usize>) -> AnyResul
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tag_link_rendering() {
+        assert_eq!(tag_links(&[]), "");
+        assert_eq!(
+            tag_links(&["spell-trap".to_owned()]),
+            r#"<p>Tags: <a href="/?q=tag%3Aspell-trap" class="cardlink">spell-trap</a></p>"#
+        );
+    }
 
     // You may notice that the card name in most of these doesn’t match the effect.
     // That’s because I’m lazy and let Claude generate my test code,
